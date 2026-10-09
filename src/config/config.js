@@ -24,9 +24,10 @@ const envVarsSchema = Joi.object()
     CLIENT_URL: Joi.string().uri().default('http://localhost:3000').description('web app origin (CORS + email links)'),
     COOKIE_SECURE: Joi.boolean().default(false).description('send auth cookies over HTTPS only'),
     COOKIE_SAME_SITE: Joi.string().valid('lax', 'strict', 'none').default('lax').description('SameSite for auth cookies'),
-    SEED_ADMIN_NAME: Joi.string().description('name of the first Admin created by npm run seed'),
-    SEED_ADMIN_EMAIL: Joi.string().email().description('email of the first Admin created by npm run seed'),
-    SEED_ADMIN_PASSWORD: Joi.string().min(8).description('password of the first Admin created by npm run seed'),
+    SEED_ADMIN_EMAIL: Joi.string().allow('').description('Admin email for npm run seed when there is no terminal to ask in'),
+    SEED_ADMIN_PASSWORD: Joi.string()
+      .allow('')
+      .description('Admin password for npm run seed when there is no terminal to ask in'),
   })
   // Browsers reject SameSite=None cookies that aren't also Secure, so fail at boot instead of at login.
   .custom((env, helpers) => {
@@ -74,7 +75,6 @@ export default {
     sameSite: envVars.COOKIE_SAME_SITE,
   },
   seedAdmin: {
-    name: envVars.SEED_ADMIN_NAME,
     email: envVars.SEED_ADMIN_EMAIL,
     password: envVars.SEED_ADMIN_PASSWORD,
   },

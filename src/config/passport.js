@@ -12,7 +12,7 @@ const jwtOptions = {
 };
 
 /**
- * The token only proves *who* the caller is. Role and status are re-read from the DB on
+ * The token only proves *who* the caller is. Role, permissions and status are re-read from the DB on
  * every request, so a suspension or a role edit takes effect immediately, not when the
  * access token happens to expire.
  */
@@ -21,7 +21,7 @@ const jwtVerify = async (payload, done) => {
     if (payload.type !== tokenTypes.ACCESS) {
       throw new Error('Invalid token type');
     }
-    const user = await User.findById(payload.sub).populate('role');
+    const user = await User.findById(payload.sub);
     if (!user || user.status !== userStatuses.ACTIVE) {
       return done(null, false);
     }

@@ -12,6 +12,7 @@ router.post('/logout', authController.logout);
 router.post('/refresh-tokens', authController.refreshTokens);
 router.post('/forgot-password', validate(authValidation.forgotPassword), authController.forgotPassword);
 router.post('/reset-password', validate(authValidation.resetPassword), authController.resetPassword);
+router.post('/change-password', auth(), validate(authValidation.changePassword), authController.changePassword);
 router.get('/me', auth(), authController.getMe);
 
 export default router;
@@ -49,7 +50,7 @@ export default router;
  *             schema:
  *               type: object
  *               properties:
- *                 user: { $ref: '#/components/schemas/User' }
+ *                 user: { $ref: '#/components/schemas/Registration' }
  *                 message: { type: string }
  *       "400":
  *         $ref: '#/components/responses/DuplicateEmail'
@@ -177,9 +178,45 @@ export default router;
 
 /**
  * @swagger
+ * /auth/change-password:
+ *   post:
+ *     summary: Change your own password (signs out other sessions, keeps this one)
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string, format: password }
+ *               newPassword: { type: string, format: password, minLength: 8 }
+ *     responses:
+ *       "200":
+ *         description: OK (new refreshToken cookie set)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tokens:
+ *                   type: object
+ *                   properties:
+ *                     access: { $ref: '#/components/schemas/Token' }
+ *       "400":
+ *         description: Current password is incorrect, or new password invalid
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
  * /auth/me:
  *   get:
- *     summary: Current user, role and effective permissions
+ *     summary: Current user with role and effective permissions
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
@@ -191,8 +228,7 @@ export default router;
  *             schema:
  *               type: object
  *               properties:
- *                 user: { $ref: '#/components/schemas/User' }
- *                 permissions: { type: array, items: { type: string } }
+ *                 user: { $ref: '#/components/schemas/UserDetail' }
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
  */

@@ -6,7 +6,7 @@ import { isValidPermission } from '../config/permissions.js';
 /**
  * Authentication: "who are you?" → 401 when the access token is missing, invalid,
  * expired, or belongs to a user who is no longer active.
- * On success `req.user` is the User document with `role` populated.
+ * On success `req.user` is the User document (role and permissions included).
  */
 const auth = () => (req, res, next) => {
   passport.authenticate('jwt', { session: false }, (err, user, info) => {

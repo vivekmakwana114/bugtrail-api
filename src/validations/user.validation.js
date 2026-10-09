@@ -1,20 +1,30 @@
 import Joi from 'joi';
 import { password, objectId } from './custom.validation.js';
 import { userStatuses } from '../config/userStatuses.js';
+import { roleValues } from '../config/roles.js';
+
+// Only the four roles are accepted. Permissions are never sent: they follow from the role.
+const role = Joi.string().valid(...roleValues);
+
+const avatarUrl = Joi.string()
+  .trim()
+  .uri({ scheme: ['http', 'https'] })
+  .max(2048)
+  .allow(null);
 
 const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
-    name: Joi.string().required(),
-    role: Joi.string().required().custom(objectId),
+    name: Joi.string().trim().required().max(100),
+    role: role.required(),
   }),
 };
 
 const getUsers = {
   query: Joi.object().keys({
     name: Joi.string(),
-    role: Joi.string().custom(objectId),
+    role,
     status: Joi.string().valid(...Object.values(userStatuses)),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
@@ -36,9 +46,22 @@ const updateUser = {
     .keys({
       email: Joi.string().email(),
       password: Joi.string().custom(password),
-      name: Joi.string(),
+      name: Joi.string().trim().max(100),
+      role,
+      avatarUrl,
     })
     .min(1),
+};
+
+// `pending` is not a target: a user can't be sent back to the approval queue.
+const updateUserStatus = {
+  params: Joi.object().keys({
+    userId: Joi.required().custom(objectId),
+  }),
+  body: Joi.object().keys({
+    status: Joi.string().required().valid(userStatuses.ACTIVE, userStatuses.SUSPENDED, userStatuses.REJECTED),
+    role,
+  }),
 };
 
 const deleteUser = {
@@ -47,10 +70,21 @@ const deleteUser = {
   }),
 };
 
+const updateMe = {
+  body: Joi.object()
+    .keys({
+      name: Joi.string().trim().max(100),
+      avatarUrl,
+    })
+    .min(1),
+};
+
 export default {
   createUser,
   getUsers,
   getUser,
   updateUser,
+  updateUserStatus,
   deleteUser,
+  updateMe,
 };

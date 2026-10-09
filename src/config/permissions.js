@@ -2,10 +2,10 @@
  * Permission catalog: the single source of truth for every permission key.
  *
  * The catalog lives in code because a permission only means something when a route
- * or service checks it. Which role holds which permission lives in the DB (Role model),
- * so Admin can change that at runtime without a deploy.
+ * or service checks it. Which role has which permissions is also code (roles.js); a user
+ * only stores their role.
  *
- * Groups and labels are what the Roles screen renders as its checkbox matrix.
+ * Groups and labels let the web app show what a role can do in readable words.
  */
 const permissionGroups = [
   {
@@ -59,16 +59,6 @@ const permissionGroups = [
       { key: 'user:update', label: 'Edit users' },
       { key: 'user:delete', label: 'Delete users' },
       { key: 'user:approve', label: 'Approve, reject and suspend users' },
-    ],
-  },
-  {
-    key: 'role',
-    label: 'Roles',
-    permissions: [
-      { key: 'role:read', label: 'View roles' },
-      { key: 'role:create', label: 'Create roles' },
-      { key: 'role:update', label: 'Edit roles' },
-      { key: 'role:delete', label: 'Delete roles' },
     ],
   },
 ];

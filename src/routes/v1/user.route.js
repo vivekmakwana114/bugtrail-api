@@ -6,6 +6,9 @@ import userController from '../../controllers/user.controller.js';
 
 const router = express.Router();
 
+// /me must be registered before /:userId, or Express would treat "me" as a userId.
+router.patch('/me', auth(), validate(userValidation.updateMe), userController.updateMe);
+
 router
   .route('/')
   .post(auth(), authorize('user:create'), validate(userValidation.createUser), userController.createUser)
@@ -17,238 +20,211 @@ router
   .patch(auth(), authorize('user:update'), validate(userValidation.updateUser), userController.updateUser)
   .delete(auth(), authorize('user:delete'), validate(userValidation.deleteUser), userController.deleteUser);
 
+router.patch(
+  '/:userId/status',
+  auth(),
+  authorize('user:approve'),
+  validate(userValidation.updateUserStatus),
+  userController.updateUserStatus,
+);
+
 export default router;
 
 /**
  * @swagger
  * tags:
  *   name: Users
- *   description: User management and retrieval
+ *   description: User management, approval queue and own profile
  */
 
 /**
  * @swagger
- * path:
- *  /users:
- *    post:
- *      summary: Create a user
- *      description: Only admins can create other users.
- *      tags: [Users]
- *      security:
- *        - bearerAuth: []
- *      requestBody:
- *        required: true
- *        content:
- *          application/json:
- *            schema:
- *              type: object
- *              required:
- *                - name
- *                - email
- *                - password
- *                - role
- *              properties:
- *                name:
- *                  type: string
- *                email:
- *                  type: string
- *                  format: email
- *                  description: must be unique
- *                password:
- *                  type: string
- *                  format: password
- *                  minLength: 8
- *                  description: At least one number and one letter
- *                role:
- *                   type: string
- *                   enum: [user, admin]
- *              example:
- *                name: fake name
- *                email: fake@example.com
- *                password: password1
- *                role: user
- *      responses:
- *        "201":
- *          description: Created
- *          content:
- *            application/json:
- *              schema:
- *                 $ref: '#/components/schemas/User'
- *        "400":
- *          $ref: '#/components/responses/DuplicateEmail'
- *        "401":
- *          $ref: '#/components/responses/Unauthorized'
- *        "403":
- *          $ref: '#/components/responses/Forbidden'
- *
- *    get:
- *      summary: Get all users
- *      description: Only admins can retrieve all users.
- *      tags: [Users]
- *      security:
- *        - bearerAuth: []
- *      parameters:
- *        - in: query
- *          name: name
- *          schema:
- *            type: string
- *          description: User name
- *        - in: query
- *          name: role
- *          schema:
- *            type: string
- *          description: User role
- *        - in: query
- *          name: sortBy
- *          schema:
- *            type: string
- *          description: sort by query in the form of field:desc/asc (ex. name:asc)
- *        - in: query
- *          name: limit
- *          schema:
- *            type: integer
- *            minimum: 1
- *          default: 10
- *          description: Maximum number of users
- *        - in: query
- *          name: page
- *          schema:
- *            type: integer
- *            minimum: 1
- *            default: 1
- *          description: Page number
- *      responses:
- *        "200":
- *          description: OK
- *          content:
- *            application/json:
- *              schema:
- *                type: object
- *                properties:
- *                  results:
- *                    type: array
- *                    items:
- *                      $ref: '#/components/schemas/User'
- *                  page:
- *                    type: integer
- *                    example: 1
- *                  limit:
- *                    type: integer
- *                    example: 10
- *                  totalPages:
- *                    type: integer
- *                    example: 1
- *                  totalResults:
- *                    type: integer
- *                    example: 1
- *        "401":
- *          $ref: '#/components/responses/Unauthorized'
- *        "403":
- *          $ref: '#/components/responses/Forbidden'
+ * /users/me:
+ *   patch:
+ *     summary: Update your own profile (name, avatar). Password → POST /auth/change-password
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             minProperties: 1
+ *             properties:
+ *               name: { type: string }
+ *               avatarUrl: { type: string, format: uri, nullable: true }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDetail' }
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
  */
 
 /**
  * @swagger
- * path:
- *  /users/{id}:
- *    get:
- *      summary: Get a user
- *      description: Logged in users can fetch only their own user information. Only admins can fetch other users.
- *      tags: [Users]
- *      security:
- *        - bearerAuth: []
- *      parameters:
- *        - in: path
- *          name: id
- *          required: true
- *          schema:
- *            type: string
- *          description: User id
- *      responses:
- *        "200":
- *          description: OK
- *          content:
- *            application/json:
- *              schema:
- *                 $ref: '#/components/schemas/User'
- *        "401":
- *          $ref: '#/components/responses/Unauthorized'
- *        "403":
- *          $ref: '#/components/responses/Forbidden'
- *        "404":
- *          $ref: '#/components/responses/NotFound'
- *
- *    patch:
- *      summary: Update a user
- *      description: Logged in users can only update their own information. Only admins can update other users.
- *      tags: [Users]
- *      security:
- *        - bearerAuth: []
- *      parameters:
- *        - in: path
- *          name: id
- *          required: true
- *          schema:
- *            type: string
- *          description: User id
- *      requestBody:
- *        required: true
- *        content:
- *          application/json:
- *            schema:
- *              type: object
- *              properties:
- *                name:
- *                  type: string
- *                email:
- *                  type: string
- *                  format: email
- *                  description: must be unique
- *                password:
- *                  type: string
- *                  format: password
- *                  minLength: 8
- *                  description: At least one number and one letter
- *              example:
- *                name: fake name
- *                email: fake@example.com
- *                password: password1
- *      responses:
- *        "200":
- *          description: OK
- *          content:
- *            application/json:
- *              schema:
- *                 $ref: '#/components/schemas/User'
- *        "400":
- *          $ref: '#/components/responses/DuplicateEmail'
- *        "401":
- *          $ref: '#/components/responses/Unauthorized'
- *        "403":
- *          $ref: '#/components/responses/Forbidden'
- *        "404":
- *          $ref: '#/components/responses/NotFound'
- *
- *    delete:
- *      summary: Delete a user
- *      description: Logged in users can delete only themselves. Only admins can delete other users.
- *      tags: [Users]
- *      security:
- *        - bearerAuth: []
- *      parameters:
- *        - in: path
- *          name: id
- *          required: true
- *          schema:
- *            type: string
- *          description: User id
- *      responses:
- *        "200":
- *          description: No content
- *        "401":
- *          $ref: '#/components/responses/Unauthorized'
- *        "403":
- *          $ref: '#/components/responses/Forbidden'
- *        "404":
- *          $ref: '#/components/responses/NotFound'
+ * /users:
+ *   post:
+ *     summary: Create an active user with a role (requires user:create)
+ *     description: Permissions follow from the role. Only an Admin can assign Admin, and you can't assign a role with permissions you don't hold.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password, role]
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string, format: email }
+ *               password: { type: string, format: password, minLength: 8 }
+ *               role: { type: string, enum: [admin, project_manager, developer, qa] }
+ *             example: { name: Dana Developer, email: dana@example.com, password: password1, role: developer }
+ *     responses:
+ *       "201":
+ *         description: Created
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDetail' }
+ *       "400":
+ *         $ref: '#/components/responses/DuplicateEmail'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *   get:
+ *     summary: List users (requires user:read)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: query, name: name, schema: { type: string } }
+ *       - { in: query, name: role, schema: { type: string, enum: [admin, project_manager, developer, qa] } }
+ *       - { in: query, name: status, schema: { type: string, enum: [pending, active, suspended, rejected] } }
+ *       - { in: query, name: sortBy, schema: { type: string }, description: "field:asc|desc, e.g. name:asc" }
+ *       - { in: query, name: limit, schema: { type: integer, minimum: 1, default: 10 } }
+ *       - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserPage' }
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ */
+
+/**
+ * @swagger
+ * /users/{userId}:
+ *   parameters:
+ *     - { in: path, name: userId, required: true, schema: { type: string } }
+ *   get:
+ *     summary: Get a user (requires user:read)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDetail' }
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *   patch:
+ *     summary: Update a user (requires user:update)
+ *     description: You can't manage a user with permissions you don't hold, or change your own role. Setting a password signs the user out everywhere.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             minProperties: 1
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string, format: email }
+ *               password: { type: string, format: password, minLength: 8 }
+ *               role: { type: string, enum: [admin, project_manager, developer, qa] }
+ *               avatarUrl: { type: string, format: uri, nullable: true }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDetail' }
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *       "409":
+ *         description: Would demote the last active Admin
+ *   delete:
+ *     summary: Delete a user (requires user:delete). Prefer suspending.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "204":
+ *         description: No content
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *       "409":
+ *         description: Would delete the last active Admin
+ */
+
+/**
+ * @swagger
+ * /users/{userId}/status:
+ *   patch:
+ *     summary: Approve, reject, suspend or reactivate a user (requires user:approve)
+ *     description: |
+ *       Allowed moves: pending → active | rejected, active → suspended, suspended → active, rejected → active.
+ *       Activating needs a role (in the body, or one the user already has).
+ *       Leaving `active` ends the user's sessions.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: path, name: userId, required: true, schema: { type: string } }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status: { type: string, enum: [active, suspended, rejected] }
+ *               role: { type: string, enum: [admin, project_manager, developer, qa] }
+ *             example: { status: active, role: developer }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDetail' }
+ *       "400":
+ *         description: Transition not allowed, or no role to activate with
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "409":
+ *         description: Would suspend the last active Admin
  */

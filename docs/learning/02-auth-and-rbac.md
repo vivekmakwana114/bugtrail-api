@@ -1,22 +1,23 @@
-# 02: Authentication and RBAC (Phase 1, backend)
+# 02: Authentication and access control (Phases 1–2, backend)
+
+> **Design change in Phase 2.** Phase 1 shipped a `Role` collection, so Admin could edit roles at runtime. In Phase 2 we deliberately removed it: a user stores only a **role enum**, and what each role can do is **defined in code**. Section 3 explains the trade-off.
 
 ## What we did
 | Change | Why |
 |---|---|
 | `src/config/permissions.js`: permission **catalog** in code | A permission only means something if code checks it. A key invented in the UI would guard nothing. |
-| `Role` model: which role holds which permission, **in the DB** | Admin can create "Team Lead" or tweak QA without a deploy. |
-| `User.role` is now a ref to `Role`; added `status`, `avatarUrl`, `lastLoginAt` | Roles are data, not a hardcoded `['user', 'admin']` enum. `status` drives the approval flow. |
+| `src/config/roles.js`: `admin \| project_manager \| developer \| qa` and what each can do | One file answers "what can a QA do?". Changing it is a reviewed PR, and it applies to every QA at once. |
+| `User.role` is a plain enum; added `status`, `avatarUrl`, `lastLoginAt` | No join, no extra collection. `status` drives the approval flow. |
 | `auth()` split from `authorize(...perms)` | Two questions, two status codes (401 vs 403), two middlewares. The old `auth('manageUsers')` mixed them and hid a "users can always access their own `:userId`" exception inside. |
-| Passport populates `role` and rejects non-`active` users | Permissions and status are re-read **every request**, so edits apply instantly. |
+| Every request re-reads the user (role + status) | Role changes and suspensions apply on the very next request. |
 | Refresh token in an **httpOnly cookie**, scoped to `/v1/auth` | JavaScript (and XSS) can't read it. |
-| Register → `pending`. Login → 403 for pending/suspended/rejected | Self-register, then Admin approval (approval endpoint is Phase 2). |
-| `GET /auth/me` | The web app's source of truth for "who am I and what can I do". |
-| `jti` added to every JWT | **Bug found by the new tests**, see concept 5. |
-| Forgot-password always returns 204 | The old 404 told an attacker which emails have accounts. |
-| Reset-password revokes all refresh tokens | If you reset because you were hacked, the attacker's sessions must die too. |
-| Removed `xss-clean` | It HTML-escaped stored text. `<b>` pasted into a bug report came back as `&lt;b&gt;`. Escaping is the UI's job, at render time. |
-| CORS limited to `CLIENT_URL` with credentials | `cors()` with no options let any website call the API from a user's browser. |
-| `npm run seed`, `GET /v1/health`, `mongodb-memory-server`, tests in CI | First Admin without hand-editing the DB, a Railway healthcheck, and tests that need no MongoDB. |
+| Register → `pending`. Admin approves with a role (`PATCH /users/:id/status`) | Self-register, then approval. |
+| Escalation guards in `src/utils/accessGuards.js` | See concept 7. |
+| Serializers in `src/serializers/` | Each endpoint returns a chosen shape, never the whole document. See concept 8. |
+| `jti` added to every JWT | **Bug found by the tests**, see concept 5. |
+| Forgot-password always 204; reset and change-password revoke sessions | No account enumeration; a reset after a hack must end the attacker's sessions. |
+| Removed `xss-clean`, CORS limited to `CLIENT_URL` | Stored text stays exactly as typed; only our web app can call the API with cookies. |
+| Interactive `npm run seed`, `GET /v1/health`, in-memory MongoDB tests, Postman collection | First Admin without editing the DB, a Railway healthcheck, tests with no setup, click-to-test API. |
 
 ## The request flow now
 ```
@@ -24,16 +25,17 @@ GET /v1/users   Authorization: Bearer <access JWT>
    │
    ▼
 auth()                       passport-jwt verifies signature + expiry + type=access
-   │                         User.findById(sub).populate('role')
+   │                         User.findById(sub)              (one indexed read, no join)
    │                         user missing or status != active ─────────────► 401
    ▼
-authorize('user:read')       req.user.getPermissions()
-   │                           Admin role → the whole catalog (always)
-   │                           other role → role.permissions
-   │                           no role    → []  (fails closed)
+authorize('user:read')       req.user.getPermissions()  →  roles.js[user.role]
+   │                           admin   → the whole catalog (always)
+   │                           no role → []  (fails closed)
    │                         missing any required permission ─────────────► 403
    ▼
-validate(schema) → controller → service → model
+validate(schema) → controller → service (+ escalation guards) → model
+   ▼
+serializer                   picks exactly the fields this endpoint returns
 ```
 
 ## Concepts worth knowing
@@ -41,18 +43,23 @@ validate(schema) → controller → service → model
 ### 1. Authentication vs authorization
 - **Authentication (401):** *who are you?* A bad, expired or missing token, or a user who is no longer active.
 - **Authorization (403):** *I know who you are, and you can't do this.*
-The frontend treats them differently. A 401 means "try a silent refresh, then send to login". A 403 means "show 'no permission'". Mixing them up causes logout loops.
+The frontend treats them differently. A 401 means "try a silent refresh, then send to login". A 403 means "show 'no permission'". Mixing them up causes logout loops. That's also why a wrong *current password* on change-password is a **400**, not a 401: a typo must not log you out.
 
 ### 2. Why permissions are NOT in the JWT
-It's tempting to put `permissions: [...]` in the token and skip the DB lookup. But a JWT can't be changed after it's issued. If Admin removes `bug:delete` from a role, or suspends someone, every token already issued keeps the old powers until it expires (30 minutes here). We pay one indexed `findById + populate` per request to get **instant revocation**. The test `should apply a role edit on the very next request, with the same access token` proves it.
+A JWT can't be changed after it's issued. If the token carried `role: 'qa'` and an Admin demoted or suspended that person, the token would keep the old powers until it expired (30 minutes). We pay one indexed `findById` per request to get **instant revocation**. The test `should apply a role change on the very next request, with the same access token` proves it.
 
-### 3. Catalog in code, assignment in DB
-| | Lives in | Changed by |
+### 3. Roles in code vs roles in the database (the Phase 2 decision)
+| | Roles collection (Phase 1) | Role enum + code (now) |
 |---|---|---|
-| *Which permissions exist* (`bug:verify`) | `permissions.js` | a developer, in a PR, together with the code that checks it |
-| *Who has them* (QA has `bug:verify`) | `roles` collection | Admin, at runtime |
+| Change what QA can do | Admin edits in the UI, instant | PR to `roles.js`, applies on deploy |
+| Custom roles ("Team Lead") | Yes | Add one to `roles.js` (code change) |
+| Two QAs with different powers | Possible (drift) | Impossible: every QA is identical |
+| Per-request cost | `findById` + `populate` (2 reads) | `findById` (1 read) |
+| Moving parts | Role model, CRUD, guards for editing roles, seed of roles | One config file |
 
-`authorize('bug:raed')` throws **at boot**, because a typo that silently denied everyone would be a terrible bug to chase. The Role model also rejects unknown keys, so the DB can't drift from the catalog.
+For an internal tool with four stable roles, the right side wins: simpler, auditable in git, and nothing to drift. The left side is worth it when customers define their own roles (multi-tenant SaaS). The permission *keys* still exist: routes check `authorize('bug:verify')`, never `role === 'qa'`. So if you ever need the left side back, no route has to change.
+
+`authorize('bug:raed')` throws **at boot**, because a typo that silently denied everyone would be a terrible bug to chase.
 
 ### 4. Access token in memory, refresh token in an httpOnly cookie
 | Storage | XSS can steal it? | Sent automatically? |
@@ -63,18 +70,45 @@ It's tempting to put `permissions: [...]` in the token and skip the DB lookup. B
 
 The short-lived access token (30 min) lives in memory. The long-lived refresh token (30 days) lives where scripts can't reach it. On page reload, memory is empty, so the app calls `/auth/refresh-tokens` and the browser sends the cookie.
 
-**CSRF note:** cookies are sent automatically, which is the CSRF risk. With `SameSite=Lax` (our default, and fine on `app.<domain>` + `api.<domain>`), browsers don't send the cookie on cross-site POSTs. CORS also stops other sites from *reading* the new access token. If you ever deploy on two unrelated domains (`SameSite=None`), revisit this. See `docs/DEPLOYMENT.md`.
+The cookie's `Path=/v1/auth` has a consequence we used in Phase 2: only auth routes can see the refresh token. That's why **change-password lives at `/auth/change-password`**, not `PATCH /users/me`. It needs the cookie to sign out other sessions while keeping yours.
+
+**Logout and access tokens:** logout revokes the *refresh* token, but an access token already issued stays valid until it expires (max 30 min), because access tokens are stateless. That's the reason they're short-lived. The web app simply forgets it.
+
+**CSRF note:** cookies are sent automatically, which is the CSRF risk. With `SameSite=Lax` (our default, fine on `app.<domain>` + `api.<domain>`), browsers don't send the cookie on cross-site POSTs, and CORS stops other sites from *reading* the new access token. If you ever deploy on two unrelated domains (`SameSite=None`), revisit this. See `docs/DEPLOYMENT.md`.
 
 ### 5. Refresh-token rotation, and the bug the tests caught
-Each refresh deletes the old refresh token and issues a new one, so a stolen token works at most once. But a JWT is a deterministic signature of its payload, and our payload was `{sub, iat, exp, type}` with `iat` in **seconds**. Two refreshes in the same second produced **byte-identical** tokens. Rotation deleted the old token and saved the same string again, so the "used" token kept working. The fix is a random `jti` (JWT ID) per token. It's the kind of bug you only find by writing the test for the property you *think* you have.
+Each refresh deletes the old refresh token and issues a new one, so a stolen token works at most once. But a JWT is a deterministic signature of its payload, and our payload was `{sub, iat, exp, type}` with `iat` in **seconds**. Two refreshes in the same second produced **byte-identical** tokens: rotation deleted the old one and saved the same string again, so the "used" token kept working. The fix is a random `jti` (JWT ID) per token. You only find this kind of bug by testing the property you *think* you have.
 
 ### 6. Fail closed, and don't leak
-- `getPermissions()` returns `[]` for a user with no role or an unpopulated one. A bug in loading gives *less* access, never more.
-- Login checks the password **before** the status. A wrong password always gets "Incorrect email or password", so you can't probe whether `ceo@invennico.com` has a pending account.
+- `getPermissions()` returns `[]` for a user with no role. A bug gives *less* access, never more.
+- Login checks the password **before** the status, so you can't probe whether `ceo@invennico.com` has a pending account.
 - Forgot-password always returns 204 for the same reason.
 
+### 7. Escalation guards: "can this user change *who* can do X?"
+`authorize()` answers "can you call this endpoint?". It can't answer "can you do it *to this person*?", because that depends on the target. Those rules live in the service layer (`accessGuards.js`), so they apply however the service is called:
+
+| Guard | Attack it stops |
+|---|---|
+| You can't assign a role whose permissions you don't hold | A user with `user:approve` approving their friend as QA, gaining `bug:verify` by proxy |
+| Only an Admin assigns Admin | Anyone creating a new Admin |
+| You can't manage a user who holds permissions you don't | Resetting a QA's (or the Admin's) password, then logging in as them |
+| You can't change your own role/status or delete yourself | Self-promotion, accidental lock-out |
+| The last active Admin can't be suspended, deleted or demoted | Nobody left who can manage the system |
+
+Today only Admin holds `user:create/update/approve/delete`, so the non-Admin guards are dormant. They're there for the day you give PMs `user:approve`, and the tests simulate that day with a Jest spy.
+
+**A known gap, accepted on purpose:** two Admins suspending each other at the same instant both see "2 active Admins" and both succeed. Closing that needs a MongoDB transaction, which needs a replica set, which a single VPS `mongod` doesn't have. The odds are tiny, and the recovery is built in: `npm run seed` creates a new Admin whenever no **active** Admin exists.
+
+### 8. Response shaping: the server decides
+Controllers never `res.send(document)`. They pass it through a serializer (`src/serializers/user.serializer.js`) that **picks** fields:
+- `userSummary` (lists): `id, name, email, role, status, avatarUrl`
+- `userDetail` (one user, `/me`, login): summary + `permissions, lastLoginAt, createdAt`
+
+Picking (an allow-list) beats removing (a block-list): a field added to the model later, like an internal flag or a reset counter, is **invisible until someone deliberately exposes it**. Lists stay small too, which matters when the bug grid embeds a reporter and an assignee in every row.
+
 ## Try it yourself
-1. `npm run seed`, `npm run dev`, then in Swagger (`/v1/docs`) log in as the seed Admin and call `GET /auth/me`. Count the permissions (27).
-2. Register a new user and try to log in. Read the 403 message. In Compass/mongosh set `status: 'active'` and assign the Developer role id, then log in and call `GET /users`. Why is it 403 and not 401?
-3. **Exercise:** remove the `jti` line in `token.service.js` and run `npm test`. Which two tests fail, and why does one of them return 200 instead of 401?
-4. **Exercise:** add a permission `bug:export` to the catalog. Without running anything, predict which role gets it automatically, and why no migration is needed. Then check with `/auth/me`.
+1. `npm run seed` in **PowerShell or Command Prompt** (Git Bash: `winpty npm run seed`). Notice the password is masked, and an invalid password is rejected with the same rule the API uses.
+2. Import `docs/postman/BugTrail.postman_collection.json`, set `adminEmail`/`adminPassword`, and **Run collection**. Then open `List users` and `Me`: compare the two shapes.
+3. **Exercise:** remove the `jti` line in `token.service.js` and run `npm test`. Which tests fail, and why does one return 200 instead of 401?
+4. **Exercise:** in `roles.js`, give `project_manager` the `user:approve` permission. Approve a pending user as a PM with `role: "qa"`. What happens, and which guard stopped it? (Revert afterwards.)
+5. **Exercise:** add a field `internalNote` to the User model and save a value. Does it appear in `GET /users/:id`? Why not?

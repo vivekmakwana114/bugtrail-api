@@ -1,45 +1,87 @@
 components:
   schemas:
-    Role:
+    UserSummary:
       type: object
+      description: Compact user shape used in lists and embedded references.
       properties:
         id: { type: string }
         name: { type: string }
-        slug: { type: string }
-        description: { type: string }
-        permissions: { type: array, items: { type: string } }
-        isSystem: { type: boolean }
-      example:
-        id: 5ebac534954b54139806c113
-        name: QA
-        slug: qa
-        description: Reports bugs and verifies fixes (Pass / Failed).
-        permissions: [bug:create, bug:read, bug:verify]
-        isSystem: false
-
-    User:
-      type: object
-      properties:
-        id: { type: string }
         email: { type: string, format: email }
-        name: { type: string }
-        role:
-          oneOf:
-            - $ref: '#/components/schemas/Role'
-            - type: string
-              description: role id when not populated
-          nullable: true
+        role: { type: string, enum: [admin, project_manager, developer, qa], nullable: true }
         status: { type: string, enum: [pending, active, suspended, rejected] }
         avatarUrl: { type: string, nullable: true }
-        lastLoginAt: { type: string, format: date-time, nullable: true }
       example:
         id: 5ebac534954b54139806c112
-        email: jane@example.com
         name: Jane QA
-        role: 5ebac534954b54139806c113
+        email: jane@example.com
+        role: qa
         status: active
         avatarUrl: null
+
+    UserDetail:
+      description: A single user, /auth/me and login. Summary plus the permissions the user's role grants, and dates.
+      allOf:
+        - $ref: '#/components/schemas/UserSummary'
+        - type: object
+          properties:
+            permissions: { type: array, items: { type: string } }
+            lastLoginAt: { type: string, format: date-time, nullable: true }
+            createdAt: { type: string, format: date-time }
+      example:
+        id: 5ebac534954b54139806c112
+        name: Jane QA
+        email: jane@example.com
+        role: qa
+        status: active
+        avatarUrl: null
+        permissions: [bug:create, bug:read, bug:verify]
         lastLoginAt: 2026-10-09T09:30:00.000Z
+        createdAt: 2026-10-01T08:00:00.000Z
+
+    Registration:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        status: { type: string, enum: [pending] }
+
+    UserPage:
+      type: object
+      properties:
+        results: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 10 }
+        totalPages: { type: integer, example: 1 }
+        totalResults: { type: integer, example: 1 }
+
+    AccessCatalog:
+      type: object
+      description: Served from code. Roles are a fixed enum; permissions follow from the role.
+      properties:
+        roles:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string, example: qa }
+              label: { type: string, example: QA }
+              description: { type: string }
+              permissions: { type: array, items: { type: string } }
+        permissionGroups:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string, example: bug }
+              label: { type: string, example: Bugs }
+              permissions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key: { type: string, example: 'bug:verify' }
+                    label: { type: string, example: Mark bugs Pass / Failed }
 
     Token:
       type: object
@@ -54,8 +96,7 @@ components:
       type: object
       description: Login response. The refresh token is NOT in the body; it is set as an httpOnly cookie.
       properties:
-        user: { $ref: '#/components/schemas/User' }
-        permissions: { type: array, items: { type: string } }
+        user: { $ref: '#/components/schemas/UserDetail' }
         tokens:
           type: object
           properties:
