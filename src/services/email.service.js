@@ -4,7 +4,7 @@ import logger from '../config/logger.js';
 
 const transport = nodemailer.createTransport(config.email.smtp);
 /* istanbul ignore next */
-if (config.env !== 'test') {
+if (config.env !== 'test' && config.email.enabled) {
   transport
     .verify()
     .then(() => logger.info('Connected to email server'))
@@ -19,6 +19,15 @@ if (config.env !== 'test') {
  * @returns {Promise}
  */
 const sendEmail = async (to, subject, text) => {
+  // EMAIL_ENABLED=false (the default) lets you run locally without SMTP.
+  // The body is only logged outside production, because it can contain reset links.
+  if (!config.email.enabled) {
+    logger.info(`Email disabled, not sent: "${subject}" to ${to}`);
+    if (config.env === 'development') {
+      logger.info(text);
+    }
+    return;
+  }
   const msg = { from: config.email.from, to, subject, text };
   await transport.sendMail(msg);
 };
@@ -31,8 +40,7 @@ const sendEmail = async (to, subject, text) => {
  */
 const sendResetPasswordEmail = async (to, token) => {
   const subject = 'Reset password';
-  // replace this url with the link to the reset password page of your front-end app
-  const resetPasswordUrl = `http://link-to-app/reset-password?token=${token}`;
+  const resetPasswordUrl = `${config.clientUrl}/reset-password?token=${encodeURIComponent(token)}`;
   const text = `Dear user,
   To reset your password, click on this link: ${resetPasswordUrl}
   If you did not request any password resets, then ignore this email.`;

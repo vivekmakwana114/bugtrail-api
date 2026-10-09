@@ -1,19 +1,21 @@
 import Joi from 'joi';
 import { password, objectId } from './custom.validation.js';
+import { userStatuses } from '../config/userStatuses.js';
 
 const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
     name: Joi.string().required(),
-    role: Joi.string().required().valid('user', 'admin'),
+    role: Joi.string().required().custom(objectId),
   }),
 };
 
 const getUsers = {
   query: Joi.object().keys({
     name: Joi.string(),
-    role: Joi.string(),
+    role: Joi.string().custom(objectId),
+    status: Joi.string().valid(...Object.values(userStatuses)),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
     page: Joi.number().integer(),

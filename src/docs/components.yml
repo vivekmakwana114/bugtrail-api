@@ -1,89 +1,97 @@
 components:
   schemas:
+    Role:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        permissions: { type: array, items: { type: string } }
+        isSystem: { type: boolean }
+      example:
+        id: 5ebac534954b54139806c113
+        name: QA
+        slug: qa
+        description: Reports bugs and verifies fixes (Pass / Failed).
+        permissions: [bug:create, bug:read, bug:verify]
+        isSystem: false
+
     User:
       type: object
       properties:
-        id:
-          type: string
-        email:
-          type: string
-          format: email
-        name:
-          type: string
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
         role:
-          type: string
-          enum: [user, admin]
+          oneOf:
+            - $ref: '#/components/schemas/Role'
+            - type: string
+              description: role id when not populated
+          nullable: true
+        status: { type: string, enum: [pending, active, suspended, rejected] }
+        avatarUrl: { type: string, nullable: true }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
       example:
         id: 5ebac534954b54139806c112
-        email: fake@example.com
-        name: fake name
-        role: user
+        email: jane@example.com
+        name: Jane QA
+        role: 5ebac534954b54139806c113
+        status: active
+        avatarUrl: null
+        lastLoginAt: 2026-10-09T09:30:00.000Z
 
     Token:
       type: object
       properties:
-        token:
-          type: string
-        expires:
-          type: string
-          format: date-time
+        token: { type: string }
+        expires: { type: string, format: date-time }
       example:
         token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZWJhYzUzNDk1NGI1NDEzOTgwNmMxMTIiLCJpYXQiOjE1ODkyOTg0ODQsImV4cCI6MTU4OTMwMDI4NH0.m1U63blB0MLej_WfB7yC2FTMnCziif9X8yzwDEfJXAg
-        expires: 2020-05-12T16:18:04.793Z
+        expires: 2026-10-09T10:00:00.000Z
 
-    AuthTokens:
+    Session:
       type: object
+      description: Login response. The refresh token is NOT in the body; it is set as an httpOnly cookie.
       properties:
-        access:
-          $ref: '#/components/schemas/Token'
-        refresh:
-          $ref: '#/components/schemas/Token'
+        user: { $ref: '#/components/schemas/User' }
+        permissions: { type: array, items: { type: string } }
+        tokens:
+          type: object
+          properties:
+            access: { $ref: '#/components/schemas/Token' }
 
     Error:
       type: object
       properties:
-        code:
-          type: number
-        message:
-          type: string
+        code: { type: number }
+        message: { type: string }
 
   responses:
     DuplicateEmail:
       description: Email already taken
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: 400
-            message: Email already taken
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: 400, message: Email already taken }
     Unauthorized:
       description: Unauthorized
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: 401
-            message: Please authenticate
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: 401, message: Please authenticate }
     Forbidden:
       description: Forbidden
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: 403
-            message: Forbidden
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: 403, message: Forbidden }
     NotFound:
       description: Not found
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: 404
-            message: Not found
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: 404, message: Not found }
 
   securitySchemes:
     bearerAuth:

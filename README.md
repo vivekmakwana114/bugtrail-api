@@ -37,21 +37,34 @@ There's no Docker and no Redis. You only need Node.js and MongoDB.
 npm install
 cp .env.example .env      # Command Prompt: copy .env.example .env
 ```
-Then edit `.env`. At minimum set `MONGODB_URL` and a long random `JWT_SECRET`.
+Then edit `.env`. At minimum set `MONGODB_URL`, a long random `JWT_SECRET`, and the `SEED_ADMIN_*` values.
 
-### 3. Run
+### 3. Seed roles and the first Admin
+```bash
+npm run seed
+```
+This creates the four default roles (Admin, Project Manager, Developer, QA) and an active Admin user from `SEED_ADMIN_*`. It's idempotent: re-running it never duplicates roles or overwrites permissions an Admin has edited.
+
+### 4. Run
 ```bash
 npm run dev       # nodemon, http://localhost:5000/v1
 ```
-API docs (development only): http://localhost:5000/v1/docs
+- API docs (development only): http://localhost:5000/v1/docs
+- Health check: http://localhost:5000/v1/health
+
+Emails are logged to the console while `EMAIL_ENABLED=false` (the default), so password-reset links are visible in local dev without SMTP.
+
+## Authentication in one paragraph
+Login returns a short-lived **access token** in the body (the web app keeps it in memory) and sets the **refresh token** as an `httpOnly` cookie scoped to `/v1/auth`. The web app calls `POST /v1/auth/refresh-tokens` (cookie only, no body) to get a new access token, and each refresh rotates the cookie. Self-registered accounts start `pending` and can't log in until approved. Permissions come from the user's **Role** document, re-read on every request, so role edits and suspensions apply immediately. See [`docs/learning/02-auth-and-rbac.md`](docs/learning/02-auth-and-rbac.md).
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
 | `npm run dev` | Start with nodemon (auto-restart on change) |
+| `npm run seed` | Create default roles + first Admin (idempotent) |
 | `npm start` | Start with PM2 in the foreground (production) |
-| `npm test` | Run the Jest test suite |
+| `npm test` | Run the Jest suite (in-memory MongoDB, no setup needed) |
 | `npm run coverage` | Tests with a coverage report |
 | `npm run lint` / `lint:fix` | ESLint (airbnb-base + security + prettier) |
 | `npm run prettier:fix` | Format all JS files |
@@ -62,14 +75,15 @@ A Husky pre-commit hook runs ESLint on staged files.
 
 ```
 src/
-  config/        env validation, logger, passport, (later) permission catalog
+  config/        env validation, logger, passport, permission catalog, default roles
   controllers/   thin HTTP layer: read req, call a service, send res
   docs/          Swagger definitions
   middlewares/   auth, validation, error handling, rate limiting
   models/        Mongoose schemas + plugins (paginate, toJSON)
   routes/v1/     route definitions, wired to validation + auth + controllers
   services/      business logic (the only layer that touches models)
-  utils/         ApiError, catchAsync, pick
+  scripts/       one-off CLIs (seed)
+  utils/         ApiError, catchAsync, pick, refresh cookie helpers
   validations/   Joi schemas per route
   app.js         Express app (middleware stack)
   index.js       entry point: DB connection + HTTP server

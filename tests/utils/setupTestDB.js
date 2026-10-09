@@ -1,9 +1,16 @@
 import mongoose from 'mongoose';
-import config from '../../src/config/config.js';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
+/**
+ * Each test file gets its own throwaway in-memory MongoDB, so tests never need
+ * a local MongoDB and can never touch a real database.
+ */
 const setupTestDB = () => {
+  let mongod;
+
   beforeAll(async () => {
-    await mongoose.connect(config.mongoose.url, config.mongoose.options);
+    mongod = await MongoMemoryServer.create();
+    await mongoose.connect(mongod.getUri());
   });
 
   beforeEach(async () => {
@@ -12,6 +19,7 @@ const setupTestDB = () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
+    await mongod.stop();
   });
 };
 
