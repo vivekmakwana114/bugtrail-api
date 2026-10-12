@@ -205,6 +205,25 @@ const withDetails = async (actor, bug, project) => {
 };
 
 /**
+ * Raw aggregation rows → what bugSerializer.bugListItem expects: hydrated bugs with reporter and
+ * assignee populated, each paired with its project (name + key, for the bug key). Two queries
+ * for the whole page, not two per row.
+ * @param {Object[]} rows - plain bug documents from Bug.aggregate
+ * @returns {Promise<Array<{ bug: Bug, project: Project }>>}
+ */
+const toBugRows = async (rows) => {
+  const bugs = rows.map((row) => Bug.hydrate(row));
+  await Bug.populate(bugs, [
+    { path: 'reporter', select: userSummaryFields },
+    { path: 'assignee', select: userSummaryFields },
+  ]);
+  const projectIds = [...new Set(bugs.map((bug) => bug.project.toString()))];
+  const projects = await Project.find({ _id: { $in: projectIds } }).select('name key');
+  const projectsById = new Map(projects.map((project) => [project.id, project]));
+  return bugs.map((bug) => ({ bug, project: projectsById.get(bug.project.toString()) }));
+};
+
+/**
  * sortBy "age:desc,failCount:asc" → Mongo sort object. Age is computed (see queryBugs).
  * @param {string} sortBy
  * @returns {Object}
@@ -280,19 +299,9 @@ const queryBugs = async (actor, { projectId, status, assignee, moduleName, searc
     },
   ]);
 
-  const bugs = results.map((row) => Bug.hydrate(row));
-  await Bug.populate(bugs, [
-    { path: 'reporter', select: userSummaryFields },
-    { path: 'assignee', select: userSummaryFields },
-  ]);
-  const projects = await Project.find({ _id: { $in: [...new Set(bugs.map((bug) => bug.project.toString()))] } }).select(
-    'name key',
-  );
-  const projectsById = new Map(projects.map((project) => [project.id, project]));
-
   const totalResults = total[0]?.count ?? 0;
   return {
-    results: bugs.map((bug) => ({ bug, project: projectsById.get(bug.project.toString()) })),
+    results: await toBugRows(results),
     page,
     limit,
     totalPages: Math.ceil(totalResults / limit),
@@ -523,6 +532,7 @@ const deleteBug = async (actor, bugId) => {
 export { BUG_KEY_PATTERN };
 export default {
   getBugOrThrow,
+  toBugRows,
   queryBugs,
   getBug,
   getActivity,

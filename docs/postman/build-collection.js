@@ -600,6 +600,52 @@ const collection = {
         req({ name: 'Mark all read', method: 'PATCH', path: '/notifications/read-all', tests: [ok(204)] }),
       ],
     ),
+
+    folder(
+      'Dashboard',
+      [
+        'Dashboard numbers, limited to the projects you can see. Filters on every request: `projectId`,',
+        '`from` / `to` (when the bug was reported: `2026-10-12` or an ISO date-time; a date-only `to` covers the whole day, UTC).',
+        'The other folders clean up after themselves, so on a fresh database most numbers are 0: report a few bugs to see them move.',
+      ].join(' '),
+      [
+        req({
+          name: 'Summary (top cards)',
+          method: 'GET',
+          path: '/dashboard/summary',
+          tests: [ok()],
+          description: 'Requires `dashboard:view`. Projects by status, and bugs by status with total/open and the pie.',
+        }),
+        req({
+          name: 'Summary for a date range',
+          method: 'GET',
+          path: '/dashboard/summary?from=2026-01-01&to=2026-12-31',
+          tests: [ok()],
+          description: 'Bugs reported in 2026. Project counts are not date-filtered.',
+        }),
+        req({
+          name: 'Bug status chart',
+          method: 'GET',
+          path: '/dashboard/bug-status',
+          tests: [ok(), "pm.test('Five statuses', () => pm.expect(pm.response.json().statuses).to.have.length(5));"],
+        }),
+        req({
+          name: 'Developer performance',
+          method: 'GET',
+          path: '/dashboard/developer-performance',
+          tests: [ok()],
+          description:
+            'Requires `dashboard:view_performance` (QA, PM, Admin). Per current assignee: assigned, open, passed, totalFails, firstPassRate, avgTimeToPassMs.',
+        }),
+        req({
+          name: 'Slowest open tickets',
+          method: 'GET',
+          path: '/dashboard/slowest-tickets?open=true&limit=10',
+          tests: [ok()],
+          description: 'Top tickets by age (reported until passed, or now). `open=true` leaves out passed ones.',
+        }),
+      ],
+    ),
   ],
 };
 

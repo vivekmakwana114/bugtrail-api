@@ -308,6 +308,7 @@ const removeUserFromAllProjects = async (userId) => {
 };
 
 export default {
+  buildBugSummary,
   getProjectOrThrow,
   queryProjects,
   getProject,

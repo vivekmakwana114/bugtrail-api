@@ -1,5 +1,6 @@
 export { default as authService } from './auth.service.js';
 export { default as bugService } from './bug.service.js';
+export { default as dashboardService } from './dashboard.service.js';
 export { default as emailService } from './email.service.js';
 export { default as messageService } from './message.service.js';
 export { default as notificationService } from './notification.service.js';
