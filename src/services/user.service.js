@@ -5,6 +5,9 @@ import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.j
 import { roles } from '../config/roles.js';
 import { tokenTypes } from '../config/tokens.js';
 import projectService from './project.service.js';
+import emailService from './email.service.js';
+import logger from '../config/logger.js';
+import { disconnectUser } from '../sockets/emitter.js';
 import { assertCanAssignRole, assertCanManageUser, assertNotSelf } from '../utils/accessGuards.js';
 
 /*
@@ -47,12 +50,27 @@ const assertNotLastActiveAdmin = async (target) => {
 };
 
 /**
- * End every session of a user (refresh tokens). Their access token already stops working
- * on the next request if their status is no longer active (see config/passport.js).
+ * End every session of a user: refresh tokens and live sockets. Their access token already stops
+ * working on the next request if their status is no longer active (see config/passport.js).
  * @param {ObjectId} userId
  */
 const revokeSessions = async (userId) => {
   await Token.deleteMany({ user: userId, type: tokenTypes.REFRESH });
+  disconnectUser(userId);
+};
+
+/**
+ * Account emails are a side effect of a status change that is already saved: log a failure
+ * instead of failing the request.
+ * @param {Function} send - emailService.send...Email
+ * @param {User} user
+ */
+const queueAccountEmail = async (send, user) => {
+  try {
+    await send(user);
+  } catch (error) {
+    logger.error(`Could not queue account email for user ${user.id}: ${error.message}`);
+  }
 };
 
 /* ------------------------------------------------------------------ raw */
@@ -151,7 +169,8 @@ const updateUserAsActor = async (actor, userId, { role, ...profile }) => {
   const target = await getUserOrThrow(userId);
   assertCanManageUser(actor, target);
 
-  if (role && role !== target.role) {
+  const roleChanged = role && role !== target.role;
+  if (roleChanged) {
     assertNotSelf(actor, target._id, "You can't change your own role");
     assertCanAssignRole(actor, role);
     if (role !== roles.ADMIN) {
@@ -168,6 +187,9 @@ const updateUserAsActor = async (actor, userId, { role, ...profile }) => {
   // Someone else set this user's password: end the user's existing sessions.
   if (profile.password) {
     await revokeSessions(target._id);
+  } else if (roleChanged) {
+    // What they may see changed: drop live connections so they re-join only what's still allowed.
+    disconnectUser(target._id);
   }
   return target;
 };
@@ -210,7 +232,12 @@ const updateUserStatusAsActor = async (actor, userId, { status, role }) => {
   if (status !== userStatuses.ACTIVE) {
     await revokeSessions(target._id);
   }
-  // TODO(Phase 5): notify the user in-app, and queue the approval/rejection email in the outbox.
+  // Always emailed (no checkbox): the person can't see in-app notifications until they can log in.
+  if (status === userStatuses.ACTIVE) {
+    await queueAccountEmail(emailService.sendAccountActiveEmail, target);
+  } else if (status === userStatuses.REJECTED) {
+    await queueAccountEmail(emailService.sendAccountRejectedEmail, target);
+  }
   return target;
 };
 
@@ -231,6 +258,7 @@ const deleteUserAsActor = async (actor, userId) => {
   await Token.deleteMany({ user: target._id });
   await projectService.removeUserFromAllProjects(target._id);
   await target.deleteOne();
+  disconnectUser(target._id);
 };
 
 /**

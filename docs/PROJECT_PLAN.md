@@ -118,7 +118,7 @@ Keep the existing layers: `routes → validations (Joi) → controllers (catchAs
 - **BugActivity** (audit trail): `bug`, `project`, `actor`, `type` (created / status_changed / assigned / updated), `from`, `to`, timestamp. It powers the ticket timeline, the time-per-status numbers, and developer performance.
 - **BugMessage** (chat): `bug`, `sender`, `body`, `mentions[]`, `editedAt`, `deletedAt`. Index: `{bug, createdAt}`.
 - **Notification**: `recipient`, `actor`, `type`, `title`, `message`, `entity`, `readAt`. Expires after 90 days.
-- **EmailOutbox**: `to`, `subject`, `html`, `status: pending|sent|failed`, `attempts`, `nextAttemptAt`, `lastError`.
+- **EmailOutbox**: `to`, `subject`, `html`, `status: pending|sent|failed`, `attempts`, `nextAttemptAt`, `lastError`. *(2026-10-12: built with plain `text` (what the existing mailer sends) and a `sending` status + `lockedAt`, so an email claimed by a process that died is retried; sent rows expire after 30 days.)*
 - **Token**: unchanged.
 
 ### Ticket status rules (`bug.service`, single transition table)

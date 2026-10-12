@@ -61,8 +61,10 @@ Emails are logged to the console while `EMAIL_ENABLED=false` (the default), so p
 Login returns a short-lived **access token** in the body (the web app keeps it in memory) and sets the **refresh token** as an `httpOnly` cookie scoped to `/v1/auth`. The web app calls `POST /v1/auth/refresh-tokens` (cookie only, no body) to get a new access token, and each refresh rotates the cookie. Self-registered accounts start `pending` and can't log in until an Admin approves them with a role (`admin`, `project_manager`, `developer` or `qa`). What each role can do is defined in code (`src/config/roles.js`); the user is re-read on every request, so role changes and suspensions apply immediately. See [`docs/learning/02-auth-and-rbac.md`](docs/learning/02-auth-and-rbac.md).
 
 ## Try the API
-- **Postman:** import [`docs/postman/BugTrail.postman_collection.json`](docs/postman/README.md), one folder per module (Health, Auth, Roles, Users, Projects, Bugs).
+- **Postman:** import [`docs/postman/BugTrail.postman_collection.json`](docs/postman/README.md), one folder per module (Health, Auth, Roles, Users, Projects, Bugs, Chat, Notifications).
 - **Swagger:** http://localhost:5000/v1/docs (development only).
+- **Live events (Socket.IO):** `npm run realtime:listen -- <accessToken> [bugIdOrKey]` prints every event that user receives (notifications, and chat/status for the bug). Copy the token from Postman's `accessToken` variable.
+- **Emails** go through a MongoDB outbox (`emailoutboxes`) and a worker inside the API process. With `EMAIL_ENABLED=false` they're printed in the API console instead of sent.
 
 ## Scripts
 
@@ -71,6 +73,7 @@ Login returns a short-lived **access token** in the body (the web app keeps it i
 | `npm run dev` | Start with nodemon (auto-restart on change) |
 | `npm run seed` | Create the first Admin (asks for email + password; idempotent) |
 | `npm run postman` | Regenerate the Postman collection from `docs/postman/build-collection.js` |
+| `npm run realtime:listen -- <token> [bug]` | Watch live Socket.IO events for a user (dev tool) |
 | `npm start` | Start with PM2 in the foreground (production) |
 | `npm test` | Run the Jest suite (in-memory MongoDB, no setup needed) |
 | `npm run coverage` | Tests with a coverage report |

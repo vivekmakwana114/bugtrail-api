@@ -6,6 +6,9 @@ import escapeRegex from '../utils/escapeRegex.js';
 import getTimeInStatus from '../utils/bugTime.js';
 import { getAccessibleProjectIds, projectScopeFilter } from '../utils/scope.js';
 import projectService from './project.service.js';
+import notificationService from './notification.service.js';
+import { emitToBug } from '../sockets/emitter.js';
+import { notificationTypes } from '../config/notificationTypes.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { projectStatuses } from '../config/projectStatuses.js';
 import {
@@ -131,6 +134,39 @@ const assertAssignable = async (project, userId) => {
   if (!user || !user.hasPermission('bug:progress')) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'The assignee must be an active user who can work on bugs');
   }
+};
+
+/**
+ * @param {Bug} bug
+ * @param {Project} project
+ * @returns {{ key: string, link: string, entity: Object }} how notifications point at the bug
+ */
+const bugRefs = (bug, project) => {
+  const key = `${project.key}-${bug.bugNumber}`;
+  return {
+    key,
+    link: `/projects/${project.id}/bugs/${key}`,
+    entity: { kind: 'bug', id: bug.id, projectId: project.id, key },
+  };
+};
+
+/**
+ * Tell everyone looking at the bug that it changed. The payload is deliberately small: who may do
+ * what next (allowedStatuses) differs per viewer, so clients refetch GET /bugs/:id when they need it.
+ * @param {Bug} bug
+ * @param {Project} project
+ * @param {Object} [extra]
+ */
+const broadcastBugUpdated = (bug, project, extra = {}) => {
+  emitToBug(bug.id, 'bug:updated', {
+    id: bug.id,
+    key: bugRefs(bug, project).key,
+    status: bug.status,
+    failCount: bug.failCount,
+    assigneeId: bug.assignee ? idOf(bug.assignee).toString() : null,
+    updatedAt: bug.updatedAt,
+    ...extra,
+  });
 };
 
 /**
@@ -312,10 +348,9 @@ const getModules = async (actor, projectId) => {
 /**
  * @param {User} actor
  * @param {Object} body - project, title, moduleName, description, attachments, status, assignee, sendEmail
- *   (sendEmail is used by notifications in Phase 5)
  */
 const createBug = async (actor, body) => {
-  const { project: projectId, status = bugStatuses.REPORTED, assignee = null } = body;
+  const { project: projectId, status = bugStatuses.REPORTED, assignee = null, sendEmail = false } = body;
   const { title, moduleName, description, attachments } = body;
   const project = await projectService.getProjectOrThrow(actor, projectId);
   assertProjectWritable(project);
@@ -349,7 +384,19 @@ const createBug = async (actor, body) => {
   if (assignee) {
     await recordActivity(bug, actor, bugActivityTypes.ASSIGNED, { from: null, to: bug.assignee });
   }
-  // TODO(Phase 5): notify the assignee (in-app; email only when sendEmail is true).
+  if (assignee) {
+    const { key, link, entity } = bugRefs(bug, project);
+    await notificationService.notify({
+      recipients: [assignee],
+      actor,
+      type: notificationTypes.BUG_ASSIGNED,
+      title: `${key} was assigned to you`,
+      message: `${actor.name} reported "${bug.title}" in ${project.name} and assigned it to you.`,
+      entity,
+      link,
+      sendEmail,
+    });
+  }
   return withDetails(actor, bug, project);
 };
 
@@ -369,6 +416,7 @@ const updateBug = async (actor, bugId, body) => {
     Object.assign(bug, body);
     await bug.save();
     await recordActivity(bug, actor, bugActivityTypes.UPDATED, { fields: changed });
+    broadcastBugUpdated(bug, project, { fields: changed });
   }
   return withDetails(actor, bug, project);
 };
@@ -379,7 +427,7 @@ const updateBug = async (actor, bugId, body) => {
  * @param {ObjectId} bugId
  * @param {{ status: string, sendEmail?: boolean }} body
  */
-const changeStatus = async (actor, bugId, { status }) => {
+const changeStatus = async (actor, bugId, { status, sendEmail = false }) => {
   const { bug, project } = await getBugOrThrow(actor, bugId);
   assertProjectWritable(project);
   if (status === bug.status) {
@@ -403,7 +451,18 @@ const changeStatus = async (actor, bugId, { status }) => {
     throw new ApiError(httpStatus.CONFLICT, 'Someone else changed this bug. Reload and try again.');
   }
   await recordActivity(updated, actor, bugActivityTypes.STATUS_CHANGED, { from: bug.status, to: status });
-  // TODO(Phase 5): notify assignee + reporter (email only when sendEmail is true) and emit bug:updated.
+  broadcastBugUpdated(updated, project);
+  const { key, link, entity } = bugRefs(updated, project);
+  await notificationService.notify({
+    recipients: [updated.assignee, updated.reporter],
+    actor,
+    type: notificationTypes.BUG_STATUS_CHANGED,
+    title: `${key} is now ${status}`,
+    message: `${actor.name} moved "${updated.title}" from ${bug.status} to ${status}.`,
+    entity,
+    link,
+    sendEmail,
+  });
   return withDetails(actor, updated, project);
 };
 
@@ -412,7 +471,7 @@ const changeStatus = async (actor, bugId, { status }) => {
  * @param {ObjectId} bugId
  * @param {{ assignee: string|null, sendEmail?: boolean }} body
  */
-const assignBug = async (actor, bugId, { assignee }) => {
+const assignBug = async (actor, bugId, { assignee, sendEmail = false }) => {
   const { bug, project } = await getBugOrThrow(actor, bugId);
   assertProjectWritable(project);
   if (String(bug.assignee) === String(assignee)) {
@@ -431,7 +490,20 @@ const assignBug = async (actor, bugId, { assignee }) => {
     throw new ApiError(httpStatus.CONFLICT, 'Someone else changed this bug. Reload and try again.');
   }
   await recordActivity(updated, actor, bugActivityTypes.ASSIGNED, { from: bug.assignee, to: updated.assignee });
-  // TODO(Phase 5): notify the new assignee (email only when sendEmail is true) and emit bug:updated.
+  broadcastBugUpdated(updated, project);
+  if (updated.assignee) {
+    const { key, link, entity } = bugRefs(updated, project);
+    await notificationService.notify({
+      recipients: [updated.assignee],
+      actor,
+      type: notificationTypes.BUG_ASSIGNED,
+      title: `${key} was assigned to you`,
+      message: `${actor.name} assigned you "${updated.title}" in ${project.name}.`,
+      entity,
+      link,
+      sendEmail,
+    });
+  }
   return withDetails(actor, updated, project);
 };
 
@@ -441,14 +513,16 @@ const assignBug = async (actor, bugId, { assignee }) => {
  * @param {ObjectId} bugId
  */
 const deleteBug = async (actor, bugId) => {
-  const { bug } = await getBugOrThrow(actor, bugId);
+  const { bug, project } = await getBugOrThrow(actor, bugId);
   bug.deletedAt = new Date();
   await bug.save();
   await recordActivity(bug, actor, bugActivityTypes.DELETED);
+  broadcastBugUpdated(bug, project, { deleted: true });
 };
 
 export { BUG_KEY_PATTERN };
 export default {
+  getBugOrThrow,
   queryBugs,
   getBug,
   getActivity,

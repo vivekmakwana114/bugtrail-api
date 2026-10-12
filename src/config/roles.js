@@ -75,4 +75,13 @@ const roleValues = Object.freeze(Object.values(roles));
  */
 const getRolePermissions = (role) => (role ? [...roleDefinitions[role].permissions] : []);
 
-export { roles, roleValues, roleDefinitions, getRolePermissions };
+/**
+ * Roles that hold a permission, e.g. who to notify about a pending registration ('user:approve').
+ * Asking by permission (not "notify admins") keeps it right if the matrix changes.
+ * @param {string} permission
+ * @returns {string[]}
+ */
+const getRolesWithPermission = (permission) =>
+  roleValues.filter((role) => roleDefinitions[role].permissions.includes(permission));
+
+export { roles, roleValues, roleDefinitions, getRolePermissions, getRolesWithPermission };

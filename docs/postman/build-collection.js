@@ -103,6 +103,11 @@ const collection = {
     { key: 'bugProjectKey', value: '' },
     { key: 'bugId', value: '' },
     { key: 'bugKey', value: '' },
+    { key: 'chatProjectId', value: '' },
+    { key: 'chatProjectKey', value: '' },
+    { key: 'chatBugId', value: '' },
+    { key: 'messageId', value: '' },
+    { key: 'notificationId', value: '' },
   ],
   item: [
     folder('Health', 'Liveness + MongoDB check. No auth.', [
@@ -489,6 +494,110 @@ const collection = {
           path: '/projects/{{bugProjectId}}',
           tests: [ok(204)],
         }),
+      ],
+    ),
+
+    folder(
+      'Chat',
+      [
+        'Messages on a bug. Saved through REST, then broadcast over Socket.IO to everyone with the bug open',
+        '(message:new / message:updated / message:deleted). To watch them live, run',
+        '`npm run realtime:listen -- <accessToken> <bugId>` in a terminal while you send these.',
+        'Self-contained: creates a project and a bug, then cleans up.',
+      ].join(' '),
+      [
+        req({
+          name: 'Setup: create a project with a member',
+          method: 'POST',
+          path: '/projects',
+          prerequest: randomProjectKey('chatProjectKey'),
+          body: { name: 'Chat demo {{chatProjectKey}}', key: '{{chatProjectKey}}', members: ['{{pendingUserId}}'] },
+          tests: [ok(201), saveVar('chatProjectId', 'pm.response.json().id')],
+        }),
+        req({
+          name: 'Setup: report a bug',
+          method: 'POST',
+          path: '/bugs',
+          body: {
+            project: '{{chatProjectId}}',
+            title: 'Checkout total is wrong',
+            moduleName: 'Checkout',
+            assignee: '{{pendingUserId}}',
+          },
+          tests: [ok(201), saveVar('chatBugId', 'pm.response.json().id')],
+          description: 'The assignee (the developer approved in Users) gets a bug_assigned notification.',
+        }),
+        req({
+          name: 'Send message (with a mention)',
+          method: 'POST',
+          path: '/bugs/{{chatBugId}}/messages',
+          body: { body: 'Can you check this on mobile too?', mentions: ['{{pendingUserId}}'] },
+          tests: [ok(201), saveVar('messageId', 'pm.response.json().id')],
+          description:
+            'Requires `chat:send`. Mentions must be project members (others are ignored). Mentioned users get bug_mentioned; the assignee and reporter get bug_message, except whoever has the bug open right now.',
+        }),
+        req({
+          name: 'List messages (latest page)',
+          method: 'GET',
+          path: '/bugs/{{chatBugId}}/messages?limit=30',
+          tests: [ok()],
+          description:
+            "Requires `chat:read`. Oldest first within the page. If `nextCursor` isn't null, load older messages with `?before={nextCursor}`.",
+        }),
+        req({
+          name: 'Edit message',
+          method: 'PATCH',
+          path: '/messages/{{messageId}}',
+          body: { body: 'Can you check this on mobile (iOS and Android) too?' },
+          tests: [ok()],
+          description: "Your own messages only (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
+        }),
+        req({
+          name: 'Delete message',
+          method: 'DELETE',
+          path: '/messages/{{messageId}}',
+          tests: [ok(204)],
+          description: 'Your own messages only. It stays in the thread as a tombstone: `deleted: true`, `body: null`.',
+        }),
+        req({
+          name: 'Cleanup: delete the bug',
+          method: 'DELETE',
+          path: '/bugs/{{chatBugId}}',
+          tests: [ok(204)],
+        }),
+        req({
+          name: 'Cleanup: delete the project',
+          method: 'DELETE',
+          path: '/projects/{{chatProjectId}}',
+          tests: [ok(204)],
+        }),
+      ],
+    ),
+
+    folder(
+      'Notifications',
+      'Your bell: always your own notifications. New ones also arrive live as `notification:new`. Auth → Register gave the Admin a "waiting for approval" notification, so this folder has something to show.',
+      [
+        req({
+          name: 'List notifications',
+          method: 'GET',
+          path: '/notifications?limit=10&page=1',
+          tests: [
+            ok(),
+            "const first = pm.response.json().results[0]; if (first) { pm.collectionVariables.set('notificationId', first.id); }",
+          ],
+          description: 'Newest first. `?unread=true` for unread only. Each has `link` (a web app path) and `entity`.',
+        }),
+        req({ name: 'Unread count', method: 'GET', path: '/notifications/unread-count', tests: [ok()] }),
+        req({
+          name: 'Mark one read',
+          method: 'PATCH',
+          path: '/notifications/{{notificationId}}/read',
+          prerequest: ["if (!pm.collectionVariables.get('notificationId')) { pm.execution.skipRequest(); }"],
+          tests: [ok()],
+          description: 'Skipped when you have no notifications yet.',
+        }),
+        req({ name: 'Mark all read', method: 'PATCH', path: '/notifications/read-all', tests: [ok(204)] }),
       ],
     ),
   ],

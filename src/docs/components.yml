@@ -222,6 +222,53 @@ components:
               fields: { type: array, items: { type: string }, description: 'updated: which fields changed' }
               createdAt: { type: string, format: date-time }
 
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        bugId: { type: string }
+        sender: { $ref: '#/components/schemas/UserRef' }
+        body: { type: string, nullable: true, description: null when deleted }
+        mentions: { type: array, items: { $ref: '#/components/schemas/UserRef' } }
+        editedAt: { type: string, format: date-time, nullable: true }
+        deleted: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    MessagePage:
+      type: object
+      properties:
+        messages: { type: array, items: { $ref: '#/components/schemas/Message' }, description: Oldest first }
+        nextCursor: { type: string, nullable: true, description: 'Pass as ?before= to load older messages; null when there are none' }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [bug_assigned, bug_status_changed, bug_message, bug_mentioned, project_member_added, user_registered] }
+        title: { type: string, example: BT-42 was assigned to you }
+        message: { type: string }
+        link: { type: string, nullable: true, example: /projects/5ebac534954b54139806c112/bugs/BT-42 }
+        entity:
+          type: object
+          nullable: true
+          properties:
+            kind: { type: string, enum: [bug, project, user] }
+            id: { type: string }
+            projectId: { type: string }
+            key: { type: string }
+        actor: { $ref: '#/components/schemas/UserRef' }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    NotificationPage:
+      type: object
+      properties:
+        results: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 10 }
+        totalPages: { type: integer, example: 1 }
+        totalResults: { type: integer, example: 1 }
+
     AccessCatalog:
       type: object
       description: Served from code. Roles are a fixed enum; permissions follow from the role.
