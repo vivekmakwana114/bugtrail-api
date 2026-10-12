@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import { Bug, Token, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
+import escapeRegex from '../utils/escapeRegex.js';
 import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.js';
 import { roles } from '../config/roles.js';
 import { tokenTypes } from '../config/tokens.js';
@@ -89,14 +90,19 @@ const createUser = async (userBody) => {
 
 /**
  * Query for users
- * @param {Object} filter - Mongo filter
+ * @param {Object} filter - name, role, status (exact), and `search`: part of the name or email,
+ *   case-insensitive ("riya" finds "Riya Shah" and "riya@invennico.com")
  * @param {Object} options - Query options
  * @param {string} [options.sortBy] - Sort option in the format: sortField:(desc|asc)
  * @param {number} [options.limit] - Maximum number of results per page (default = 10)
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
-const queryUsers = async (filter, options) => {
+const queryUsers = async ({ search, ...filter }, options) => {
+  if (search) {
+    const pattern = { $regex: escapeRegex(search), $options: 'i' };
+    Object.assign(filter, { $or: [{ name: pattern }, { email: pattern }] });
+  }
   return User.paginate(filter, options);
 };
 

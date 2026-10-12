@@ -175,7 +175,7 @@ Reported → Ongoing → Resolved ──QA──► Pass
 | Module | Endpoints |
 |---|---|
 | auth | register, login, logout, refresh-tokens, forgot/reset-password, me |
-| users | list, get, create, update, delete, `PATCH /:id/status` (approve/reject/suspend), `PATCH /me` |
+| users | list, get, create, update, delete, `PATCH /:id/status` (approve/reject/suspend), `PATCH /me`. *(2026-10-12)* List takes `search` (part of name or email, case-insensitive) and each row includes `createdAt` and `lastLoginAt` |
 | roles | CRUD, `GET /roles/permissions` (catalog) |
 | projects | `GET /projects` (each project includes a status summary for its pie chart), get, create, update, delete, `POST/DELETE /:id/members`, `GET /:id/modules` (distinct module names, for autocomplete) |
 | bugs | `GET /bugs?projectId=` (filters: status, assignee, module, search; sort: age, failCount, updatedAt; paginated), get by id/key, create, update, delete (soft), `PATCH /:id/status` `{status, sendEmail}` *(`status`, not `to`, to match `PATCH /users/:id/status`)*, `PATCH /:id/assign` `{assignee, sendEmail}`, `GET /:id/activity` |

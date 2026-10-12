@@ -216,10 +216,10 @@ const collection = {
       req({
         name: 'List users',
         method: 'GET',
-        path: '/users?sortBy=name:asc&limit=10&page=1',
+        path: '/users?search=a&sortBy=name:asc&limit=10&page=1',
         tests: [ok()],
         description:
-          'Requires `user:read`. Filters: name, role (admin | project_manager | developer | qa), status. Returns the compact summary shape.',
+          'Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | qa), status. Each row is the summary plus createdAt and lastLoginAt.',
       }),
       req({
         name: 'List pending users (approval queue)',

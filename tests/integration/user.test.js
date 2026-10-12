@@ -11,6 +11,7 @@ import { userOneAccessToken, adminAccessToken, projectManagerAccessToken } from 
 setupTestDB();
 
 const SUMMARY_KEYS = ['avatarUrl', 'email', 'id', 'name', 'role', 'status'].sort();
+const LIST_ITEM_KEYS = [...SUMMARY_KEYS, 'createdAt', 'lastLoginAt'].sort();
 const DETAIL_KEYS = [...SUMMARY_KEYS, 'createdAt', 'lastLoginAt', 'permissions'].sort();
 
 const asAdmin = (req) => req.set('Authorization', `Bearer ${adminAccessToken}`);
@@ -86,7 +87,7 @@ describe('User routes', () => {
       const res = await asAdmin(request(app).get('/v1/users')).expect(httpStatus.OK);
 
       expect(res.body).toEqual({ results: expect.any(Array), page: 1, limit: 10, totalPages: 1, totalResults: 3 });
-      expect(Object.keys(res.body.results[0]).sort()).toEqual(SUMMARY_KEYS);
+      expect(Object.keys(res.body.results[0]).sort()).toEqual(LIST_ITEM_KEYS);
       expect(res.body.results[0]).toEqual({
         id: userOne._id.toHexString(),
         name: userOne.name,
@@ -94,6 +95,8 @@ describe('User routes', () => {
         role: 'developer',
         status: 'active',
         avatarUrl: null,
+        lastLoginAt: null,
+        createdAt: expect.any(String),
       });
     });
 
