@@ -1,6 +1,6 @@
 # BugTrail APIs: Postman collection
 
-`BugTrail.postman_collection.json` holds every endpoint, one folder per module: **Health, Auth, Roles, Users** (more folders arrive with each phase: Projects, Bugs, Messages, Notifications, Dashboard).
+`BugTrail.postman_collection.json` holds every endpoint, one folder per module: **Health, Auth, Roles, Users, Projects** (more folders arrive with each phase: Bugs, Messages, Notifications, Dashboard).
 
 ## Use it
 1. Start the API (`npm run dev`) and create the Admin (`npm run seed`).
@@ -9,7 +9,7 @@
 4. Run **Auth → Login**. It stores `accessToken`, and every other request uses it automatically.
 5. Or click **Run collection**: the folders are ordered so a full run passes against a freshly seeded API, and it can be re-run.
 
-Ids are captured for you by the test scripts: **Register** saves `pendingUserId`, **Create user** saves `userId`. The refresh token is an httpOnly cookie that Postman keeps in its cookie jar, so **Refresh tokens** works like a browser. The Postman desktop app is needed for cookies on `localhost`.
+Ids are captured for you by the test scripts: **Register** saves `pendingUserId`, **Create user** saves `userId`, **Create project** saves `projectId` (with a fresh random key each run, because keys are unique forever). **Add members** adds the user approved in the Users folder. The refresh token is an httpOnly cookie that Postman keeps in its cookie jar, so **Refresh tokens** works like a browser. The Postman desktop app is needed for cookies on `localhost`.
 
 **Reset password** skips itself until you paste a token into `resetToken`. With `EMAIL_ENABLED=false`, the reset link is printed in the API console after **Forgot password**.
 

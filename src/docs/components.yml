@@ -55,6 +55,81 @@ components:
         totalPages: { type: integer, example: 1 }
         totalResults: { type: integer, example: 1 }
 
+    UserRef:
+      type: object
+      description: The smallest user reference (name + avatar).
+      nullable: true
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+
+    BugSummary:
+      type: object
+      description: |
+        Computed per request from the project's (non-deleted) bugs. open = total minus pass.
+        pie is the project card's chart: reported = reported, ongoing = ongoing + failed, resolved = resolved + pass.
+      properties:
+        total: { type: integer, example: 12 }
+        open: { type: integer, example: 9 }
+        byStatus:
+          type: object
+          properties:
+            reported: { type: integer, example: 4 }
+            ongoing: { type: integer, example: 3 }
+            resolved: { type: integer, example: 1 }
+            pass: { type: integer, example: 3 }
+            failed: { type: integer, example: 1 }
+        pie:
+          type: object
+          properties:
+            reported: { type: integer, example: 4 }
+            ongoing: { type: integer, example: 4 }
+            resolved: { type: integer, example: 4 }
+
+    ProjectListItem:
+      type: object
+      description: One card on the projects grid.
+      properties:
+        id: { type: string }
+        name: { type: string, example: BugTrail }
+        key: { type: string, example: BT }
+        status: { type: string, enum: [active, completed, archived] }
+        manager: { $ref: '#/components/schemas/UserRef' }
+        memberCount: { type: integer, example: 5 }
+        bugSummary: { $ref: '#/components/schemas/BugSummary' }
+        updatedAt: { type: string, format: date-time }
+
+    ProjectDetail:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, example: BugTrail }
+        key: { type: string, example: BT }
+        description: { type: string }
+        status: { type: string, enum: [active, completed, archived] }
+        manager:
+          allOf: [{ $ref: '#/components/schemas/UserSummary' }]
+          nullable: true
+        members: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+        bugSummary: { $ref: '#/components/schemas/BugSummary' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProjectPage:
+      type: object
+      properties:
+        results: { type: array, items: { $ref: '#/components/schemas/ProjectListItem' } }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 10 }
+        totalPages: { type: integer, example: 1 }
+        totalResults: { type: integer, example: 1 }
+
+    MemberList:
+      type: object
+      properties:
+        members: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
+
     AccessCatalog:
       type: object
       description: Served from code. Roles are a fixed enum; permissions follow from the role.

@@ -68,6 +68,29 @@ describe('Error middlewares', () => {
       );
     });
 
+    test('should keep a status other than 400 (e.g. 413 from the body parser), not turn it into 400', () => {
+      const error = new Error('request entity too large');
+      error.statusCode = httpStatus.REQUEST_ENTITY_TOO_LARGE;
+      const next = jest.fn();
+
+      errorConverter(error, httpMocks.createRequest(), httpMocks.createResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: httpStatus.REQUEST_ENTITY_TOO_LARGE }));
+    });
+
+    test('should convert a MongoDB duplicate-key error (11000) to an operational 409', () => {
+      const error = new Error('E11000 duplicate key error collection: projects index: key_1 dup key: { key: "BT" }');
+      error.code = 11000;
+      const next = jest.fn();
+
+      errorConverter(error, httpMocks.createRequest(), httpMocks.createResponse(), next);
+
+      // The raw driver message names the collection and index: it must not reach the client.
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: httpStatus.CONFLICT, message: 'Already exists', isOperational: true }),
+      );
+    });
+
     test('should convert a Mongoose error to ApiError with status 400 and preserve its message', () => {
       const error = new mongoose.Error('Any mongoose error');
       const next = jest.fn();

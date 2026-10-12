@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { password, objectId } from './custom.validation.js';
+import { password, objectId, sortBy } from './custom.validation.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { roleValues } from '../config/roles.js';
 
@@ -26,9 +26,9 @@ const getUsers = {
     name: Joi.string(),
     role,
     status: Joi.string().valid(...Object.values(userStatuses)),
-    sortBy: Joi.string(),
-    limit: Joi.number().integer(),
-    page: Joi.number().integer(),
+    sortBy: sortBy(['name', 'email', 'role', 'status', 'createdAt', 'lastLoginAt']),
+    limit: Joi.number().integer().min(1).max(100),
+    page: Joi.number().integer().min(1),
   }),
 };
 

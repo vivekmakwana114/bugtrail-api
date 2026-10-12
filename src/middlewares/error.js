@@ -6,9 +6,13 @@ import ApiError from '../utils/ApiError.js';
 
 const errorConverter = (err, req, res, next) => {
   let error = err;
-  if (!(error instanceof ApiError)) {
+  if (error.code === 11000) {
+    // A unique index rejected the write. Services check uniqueness first (with a friendly
+    // message); this catches the race where two requests pass that check at the same time.
+    error = new ApiError(httpStatus.CONFLICT, 'Already exists', true, err.stack);
+  } else if (!(error instanceof ApiError)) {
     const statusCode =
-      error.statusCode || error instanceof mongoose.Error ? httpStatus.BAD_REQUEST : httpStatus.INTERNAL_SERVER_ERROR;
+      error.statusCode || (error instanceof mongoose.Error ? httpStatus.BAD_REQUEST : httpStatus.INTERNAL_SERVER_ERROR);
     const message = error.message || httpStatus[statusCode];
     error = new ApiError(statusCode, message, false, err.stack);
   }

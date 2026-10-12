@@ -3,10 +3,20 @@
  * picked explicitly (an allow-list), so a field added to the model later never leaks
  * by accident, and lists stay small.
  *
- *   userSummary  → lists, embedded references (assignee, reporter, members later on)
+ *   userRef      → the smallest reference: a name and avatar (project card manager, later bug grid rows)
+ *   userSummary  → lists and embedded members
  *   userDetail   → a single user, /auth/me, login
  *   registration → the response to self-registration
  */
+
+/** Fields to select when populating a user that will go through userSummary (or userRef). */
+const userSummaryFields = 'name email role status avatarUrl';
+
+/**
+ * @param {User|null} user
+ * @returns {{ id: string, name: string, avatarUrl: string|null }|null}
+ */
+const userRef = (user) => (user ? { id: user.id, name: user.name, avatarUrl: user.avatarUrl } : null);
 
 /**
  * @param {User} user
@@ -55,4 +65,5 @@ const userPage = ({ results, page, limit, totalPages, totalResults }) => ({
   totalResults,
 });
 
-export default { userSummary, userDetail, registration, userPage };
+export { userSummaryFields };
+export default { userRef, userSummary, userDetail, registration, userPage };

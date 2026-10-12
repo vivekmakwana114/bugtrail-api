@@ -1,3 +1,5 @@
+import Joi from 'joi';
+
 const objectId = (value, helpers) => {
   if (!value.match(/^[0-9a-fA-F]{24}$/)) {
     return helpers.message('"{{#label}}" must be a valid mongo id');
@@ -15,4 +17,20 @@ const password = (value, helpers) => {
   return value;
 };
 
-export { objectId, password };
+/**
+ * sortBy=field:asc|desc[,field:asc|desc], limited to the given fields. An open sortBy lets a caller
+ * order rows by any field, including ones they can't read (sorting users by password hash leaks
+ * information about the hashes), and sorting on unindexed fields is a cheap way to load the DB.
+ * @param {string[]} fields
+ * @returns {Joi.StringSchema}
+ */
+const sortBy = (fields) => {
+  const one = `(${fields.join('|')}):(asc|desc)`;
+  // Fields are fixed identifiers from our own code, never user input.
+  // eslint-disable-next-line security/detect-non-literal-regexp
+  return Joi.string().pattern(new RegExp(`^${one}(,${one})*$`), {
+    name: `field:asc|desc, field one of ${fields.join(', ')}`,
+  });
+};
+
+export { objectId, password, sortBy };

@@ -4,6 +4,7 @@ import ApiError from '../utils/ApiError.js';
 import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.js';
 import { roles } from '../config/roles.js';
 import { tokenTypes } from '../config/tokens.js';
+import projectService from './project.service.js';
 import { assertCanAssignRole, assertCanManageUser, assertNotSelf } from '../utils/accessGuards.js';
 
 /*
@@ -225,6 +226,7 @@ const deleteUserAsActor = async (actor, userId) => {
   assertCanManageUser(actor, target);
   await assertNotLastActiveAdmin(target);
   await Token.deleteMany({ user: target._id });
+  await projectService.removeUserFromAllProjects(target._id);
   await target.deleteOne();
 };
 
