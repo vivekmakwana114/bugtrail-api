@@ -42,6 +42,7 @@ const DETAIL_KEYS = [
 const EMPTY_SUMMARY = {
   total: 0,
   open: 0,
+  agedOpen: 0,
   byStatus: { reported: 0, ongoing: 0, resolved: 0, pass: 0, failed: 0 },
   pie: { reported: 0, ongoing: 0, resolved: 0 },
 };
@@ -59,7 +60,7 @@ const insertBugs = (projectId, statuses, extra = {}) =>
   bugs().insertMany(
     statuses.map((status) => {
       nextBugNumber += 1;
-      return { project: projectId, bugNumber: nextBugNumber, status, deletedAt: null, ...extra };
+      return { project: projectId, bugNumber: nextBugNumber, status, deletedAt: null, createdAt: new Date(), ...extra };
     }),
   );
 
@@ -210,6 +211,7 @@ describe('Project routes', () => {
       expect(alpha.bugSummary).toEqual({
         total: 7,
         open: 5,
+        agedOpen: 0,
         byStatus: { reported: 2, ongoing: 1, resolved: 1, pass: 2, failed: 1 },
         pie: { reported: 2, ongoing: 2, resolved: 3 },
       });

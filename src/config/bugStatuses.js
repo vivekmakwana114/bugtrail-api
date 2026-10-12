@@ -50,6 +50,18 @@ const pieSlices = Object.freeze({
 /** Every status except pass: the ticket still needs someone. */
 const openBugStatuses = Object.freeze(bugStatusValues.filter((status) => status !== bugStatuses.PASS));
 
+/**
+ * An open bug reported longer ago than this is "ageing": it feeds the project card's trouble line
+ * ("2 open > 7d"). The web app shows the same number of days (src/config/statuses.ts, TROUBLE_AGE_DAYS).
+ */
+const AGED_OPEN_DAYS = 7;
+
+/**
+ * @param {Date} [now]
+ * @returns {Date} bugs created before this and not passed count as aged
+ */
+const getAgedOpenCutoff = (now = new Date()) => new Date(now.getTime() - AGED_OPEN_DAYS * 24 * 60 * 60 * 1000);
+
 /** BugActivity.type values */
 const bugActivityTypes = Object.freeze({
   CREATED: 'created',
@@ -66,5 +78,7 @@ export {
   verifyTransitions,
   pieSlices,
   openBugStatuses,
+  AGED_OPEN_DAYS,
+  getAgedOpenCutoff,
   bugActivityTypes,
 };

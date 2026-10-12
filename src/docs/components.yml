@@ -72,6 +72,8 @@ components:
       properties:
         total: { type: integer, example: 12 }
         open: { type: integer, example: 9 }
+        agedOpen:
+          { type: integer, example: 2, description: "Open bugs reported more than 7 days ago (the card's trouble line)" }
         byStatus:
           type: object
           properties:
@@ -142,7 +144,13 @@ components:
       required: [title, url]
       properties:
         title: { type: string, example: Screen recording }
-        url: { type: string, format: uri, example: 'https://drive.google.com/file/d/abc/view', description: Google Drive / Docs links only }
+        url:
+          {
+            type: string,
+            format: uri,
+            example: 'https://drive.google.com/file/d/abc/view',
+            description: Google Drive / Docs links only,
+          }
 
     BugListItem:
       type: object
@@ -238,13 +246,18 @@ components:
       type: object
       properties:
         messages: { type: array, items: { $ref: '#/components/schemas/Message' }, description: Oldest first }
-        nextCursor: { type: string, nullable: true, description: 'Pass as ?before= to load older messages; null when there are none' }
+        nextCursor:
+          { type: string, nullable: true, description: 'Pass as ?before= to load older messages; null when there are none' }
 
     Notification:
       type: object
       properties:
         id: { type: string }
-        type: { type: string, enum: [bug_assigned, bug_status_changed, bug_message, bug_mentioned, project_member_added, user_registered] }
+        type:
+          {
+            type: string,
+            enum: [bug_assigned, bug_status_changed, bug_message, bug_mentioned, project_member_added, user_registered],
+          }
         title: { type: string, example: BT-42 was assigned to you }
         message: { type: string }
         link: { type: string, nullable: true, example: /projects/5ebac534954b54139806c112/bugs/BT-42 }
