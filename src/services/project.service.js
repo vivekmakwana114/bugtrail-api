@@ -6,6 +6,9 @@ import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
+import notificationService from './notification.service.js';
+import { disconnectUser } from '../sockets/emitter.js';
+import { notificationTypes } from '../config/notificationTypes.js';
 
 /*
  * Every function that takes a project id loads it through getProjectOrThrow(actor, id),
@@ -56,6 +59,23 @@ const assertCanBeManager = (user) => {
     );
   }
 };
+
+/**
+ * "You were added to <project>", for members added at creation or later.
+ * @param {User} actor
+ * @param {Project} project
+ * @param {Array<ObjectId|string>} userIds - only the people who weren't members before
+ */
+const notifyAddedMembers = (actor, project, userIds) =>
+  notificationService.notify({
+    recipients: userIds,
+    actor,
+    type: notificationTypes.PROJECT_MEMBER_ADDED,
+    title: `You were added to ${project.name}`,
+    message: `${actor.name} added you to ${project.name} (${project.key}).`,
+    entity: { kind: 'project', id: project.id, key: project.key },
+    link: `/projects/${project.id}`,
+  });
 
 /**
  * @param {Object<string, number>} [counts] - status → count
@@ -183,6 +203,7 @@ const createProject = async (actor, { members = [], manager = null, ...fields })
   }
 
   const project = await Project.create({ ...fields, manager, members: [...new Set(memberIds.map(String))] });
+  await notifyAddedMembers(actor, project, project.members);
   return withDetails(project);
 };
 
@@ -235,8 +256,13 @@ const deleteProject = async (actor, projectId) => {
 const addMembers = async (actor, projectId, userIds) => {
   const project = await getProjectOrThrow(actor, projectId);
   const users = await getAssignableUsersOrThrow(userIds);
+  const newMembers = users.filter((user) => !project.hasMember(user._id));
   await Project.updateOne({ _id: project._id }, { $addToSet: { members: { $each: users.map((user) => user._id) } } });
-  // TODO(Phase 5): notify the added users ("You were added to <project>").
+  await notifyAddedMembers(
+    actor,
+    project,
+    newMembers.map((user) => user._id),
+  );
   return getMembers(project._id);
 };
 
@@ -268,6 +294,7 @@ const removeMember = async (actor, projectId, userId) => {
     );
   }
   await Project.updateOne({ _id: project._id }, { $pull: { members: userId } });
+  disconnectUser(userId); // they may be in this project's bug rooms
   return getMembers(project._id);
 };
 

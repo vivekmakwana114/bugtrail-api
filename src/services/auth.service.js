@@ -2,10 +2,13 @@ import httpStatus from 'http-status';
 import tokenService from './token.service.js';
 import userService from './user.service.js';
 import emailService from './email.service.js';
-import { Token } from '../models/index.js';
+import notificationService from './notification.service.js';
+import { Token, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import { tokenTypes } from '../config/tokens.js';
 import { userStatuses } from '../config/userStatuses.js';
+import { getRolesWithPermission } from '../config/roles.js';
+import { notificationTypes } from '../config/notificationTypes.js';
 import logger from '../config/logger.js';
 
 const inactiveStatusMessages = {
@@ -16,12 +19,26 @@ const inactiveStatusMessages = {
 
 /**
  * Self-registration. The account starts `pending` with no role, so it can't log in
- * until an approver activates it (Phase 2) and approvers get notified (Phase 5).
+ * until an approver activates it. Everyone who can approve gets an in-app notification.
  * @param {{ name: string, email: string, password: string }} userBody
  * @returns {Promise<User>}
  */
 const register = async ({ name, email, password }) => {
-  return userService.createUser({ name, email, password, status: userStatuses.PENDING, role: null });
+  const user = await userService.createUser({ name, email, password, status: userStatuses.PENDING, role: null });
+  const approvers = await User.find({
+    role: { $in: getRolesWithPermission('user:approve') },
+    status: userStatuses.ACTIVE,
+  }).select('_id');
+  await notificationService.notify({
+    recipients: approvers.map((approver) => approver._id),
+    actor: user,
+    type: notificationTypes.USER_REGISTERED,
+    title: `${user.name} is waiting for approval`,
+    message: `${user.name} (${user.email}) registered. Approve them with a role, or reject the request.`,
+    entity: { kind: 'user', id: user.id },
+    link: '/users?status=pending',
+  });
+  return user;
 };
 
 /**

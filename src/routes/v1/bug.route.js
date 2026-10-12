@@ -3,6 +3,8 @@ import { auth, authorize } from '../../middlewares/auth.js';
 import validate from '../../middlewares/validate.js';
 import bugValidation from '../../validations/bug.validation.js';
 import bugController from '../../controllers/bug.controller.js';
+import messageValidation from '../../validations/message.validation.js';
+import messageController from '../../controllers/message.controller.js';
 
 const router = express.Router();
 
@@ -37,7 +39,69 @@ router.get(
   bugController.getActivity,
 );
 
+// Chat. Edit/delete of a single message live at /messages/:messageId.
+router
+  .route('/:bugId/messages')
+  .get(auth(), authorize('chat:read'), validate(messageValidation.listMessages), messageController.listMessages)
+  .post(auth(), authorize('chat:send'), validate(messageValidation.sendMessage), messageController.sendMessage);
+
 export default router;
+
+/**
+ * @swagger
+ * /bugs/{bugId}/messages:
+ *   parameters:
+ *     - { in: path, name: bugId, required: true, schema: { type: string }, description: "Id (both) or key like BT-42 (GET only)" }
+ *   get:
+ *     summary: A page of the bug's chat (requires chat:read)
+ *     description: |
+ *       The first call returns the latest messages; pass `nextCursor` as `before` to load older ones.
+ *       Messages in a page are oldest first. Deleted messages stay as tombstones (deleted: true, body null).
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: query, name: before, schema: { type: string }, description: nextCursor from the previous page }
+ *       - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/MessagePage' }
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *   post:
+ *     summary: Send a message (requires chat:send)
+ *     description: |
+ *       Saved, then broadcast as `message:new` to the `bug:<id>` room. Mentions must be project members
+ *       (others are ignored). Notifies mentioned users, the assignee and the reporter, except people
+ *       who have the bug open right now. Archived projects are read-only.
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [body]
+ *             properties:
+ *               body: { type: string, maxLength: 5000 }
+ *               mentions: { type: array, maxItems: 20, items: { type: string } }
+ *             example: { body: 'Can you check on Safari 17 too?', mentions: [] }
+ *     responses:
+ *       "201":
+ *         description: Created
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Message' }
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ */
 
 /**
  * @swagger

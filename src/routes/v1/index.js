@@ -5,6 +5,8 @@ import userRoute from './user.route.js';
 import roleRoute from './role.route.js';
 import projectRoute from './project.route.js';
 import bugRoute from './bug.route.js';
+import messageRoute from './message.route.js';
+import notificationRoute from './notification.route.js';
 import docsRoute from './docs.route.js';
 import config from '../../config/config.js';
 
@@ -34,6 +36,14 @@ const defaultRoutes = [
   {
     path: '/bugs',
     route: bugRoute,
+  },
+  {
+    path: '/messages',
+    route: messageRoute,
+  },
+  {
+    path: '/notifications',
+    route: notificationRoute,
   },
 ];
 
