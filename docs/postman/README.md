@@ -1,6 +1,6 @@
 # BugTrail APIs: Postman collection
 
-`BugTrail.postman_collection.json` holds every endpoint, one folder per module: **Health, Auth, Roles, Users, Projects, Bugs, Chat, Notifications** (Dashboard arrives in Phase 6).
+`BugTrail.postman_collection.json` holds every endpoint, one folder per module: **Health, Auth, Roles, Users, Projects, Bugs, Chat, Notifications, Dashboard**.
 
 ## Use it
 1. Start the API (`npm run dev`) and create the Admin (`npm run seed`).

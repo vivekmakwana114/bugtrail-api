@@ -192,6 +192,7 @@ Reported → Ongoing → Resolved ──QA──► Pass
   - **first-pass rate** (passed with `failCount = 0`)
   - average time from Reported to Pass
 - **Longest-running tickets:** the top 10 by age, with their fail count.
+- *(2026-10-12, as built)* `from` / `to` filter on when the bug was **reported** (a date-only `to` covers that whole UTC day); project counts ignore dates. Developer performance counts the bugs **currently** assigned to each person, so a bug reassigned before passing counts for its new assignee. `slowest-tickets` takes `open=true` to leave out passed tickets.
 
 ---
 
