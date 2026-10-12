@@ -260,8 +260,14 @@ const queryBugs = async (actor, { projectId, status, assignee, moduleName, searc
   if (status) {
     match.status = { $in: status };
   }
-  if (assignee) {
-    match.assignee = { me: actor._id, none: null }[assignee] ?? new mongoose.Types.ObjectId(assignee);
+  // Spelled out on purpose: a lookup table with `??` treats "none" → null as "not found" and
+  // falls through to new ObjectId('none'), which throws.
+  if (assignee === 'me') {
+    match.assignee = actor._id;
+  } else if (assignee === 'none') {
+    match.assignee = null;
+  } else if (assignee) {
+    match.assignee = new mongoose.Types.ObjectId(assignee);
   }
   if (moduleName) {
     match.moduleName = moduleName;
