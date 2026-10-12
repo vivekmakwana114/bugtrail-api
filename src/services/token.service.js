@@ -1,10 +1,8 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
-import httpStatus from 'http-status';
 import config from '../config/config.js';
-import userService from './user.service.js';
 import { Token } from '../models/index.js';
-import ApiError from '../utils/ApiError.js';
 import { tokenTypes } from '../config/tokens.js';
 
 /**
@@ -17,6 +15,9 @@ import { tokenTypes } from '../config/tokens.js';
 const generateToken = (userId, expires, type, secret = config.jwt.secret) => {
   const payload = {
     sub: userId,
+    // Unique id per token. Without it, two tokens issued in the same second are byte-identical
+    // (iat has 1s resolution), so refresh rotation could re-save the "used" token and keep it valid.
+    jti: crypto.randomUUID(),
     iat: moment().unix(),
     exp: expires.unix(),
     type,
@@ -86,14 +87,10 @@ const generateAuthTokens = async (user) => {
 
 /**
  * Generate reset password token
- * @param {string} email
+ * @param {User} user
  * @returns {Promise<string>}
  */
-const generateResetPasswordToken = async (email) => {
-  const user = await userService.getUserByEmail(email);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'No users found with this email');
-  }
+const generateResetPasswordToken = async (user) => {
   const expires = moment().add(config.jwt.resetPasswordExpirationMinutes, 'minutes');
   const resetPasswordToken = generateToken(user.id, expires, tokenTypes.RESET_PASSWORD);
   await saveToken(resetPasswordToken, user.id, expires, tokenTypes.RESET_PASSWORD);

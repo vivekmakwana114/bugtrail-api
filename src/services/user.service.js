@@ -1,6 +1,16 @@
 import httpStatus from 'http-status';
-import { User } from '../models/index.js';
+import { Role, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
+
+/**
+ * @param {ObjectId|string|null|undefined} roleId
+ * @returns {Promise}
+ */
+const assertRoleExists = async (roleId) => {
+  if (roleId && !(await Role.exists({ _id: roleId }))) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Role not found');
+  }
+};
 
 /**
  * Create a user
@@ -11,6 +21,7 @@ const createUser = async (userBody) => {
   if (await User.isEmailTaken(userBody.email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
+  await assertRoleExists(userBody.role);
   const user = await User.create(userBody);
   return user;
 };
@@ -20,6 +31,7 @@ const createUser = async (userBody) => {
  * @param {Object} filter - Mongo filter
  * @param {Object} options - Query options
  * @param {string} [options.sortBy] - Sort option in the format: sortField:(desc|asc)
+ * @param {string} [options.populate] - Populate option, e.g. 'role'
  * @param {number} [options.limit] - Maximum number of results per page (default = 10)
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
@@ -36,6 +48,15 @@ const queryUsers = async (filter, options) => {
  */
 const getUserById = async (id) => {
   return User.findById(id);
+};
+
+/**
+ * Get user by id with the role populated (needed for permission checks and API responses)
+ * @param {ObjectId} id
+ * @returns {Promise<User>}
+ */
+const getUserWithRoleById = async (id) => {
+  return User.findById(id).populate('role');
 };
 
 /**
@@ -61,6 +82,7 @@ const updateUserById = async (userId, updateBody) => {
   if (updateBody.email && (await User.isEmailTaken(updateBody.email, userId))) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
+  await assertRoleExists(updateBody.role);
   Object.assign(user, updateBody);
   await user.save();
   return user;
@@ -84,6 +106,7 @@ export default {
   createUser,
   queryUsers,
   getUserById,
+  getUserWithRoleById,
   getUserByEmail,
   updateUserById,
   deleteUserById,

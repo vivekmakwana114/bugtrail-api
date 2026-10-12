@@ -1,33 +1,49 @@
 import passport from 'passport';
 import httpStatus from 'http-status';
 import ApiError from '../utils/ApiError.js';
-import { roleRights } from '../config/roles.js';
+import { isValidPermission } from '../config/permissions.js';
 
-const verifyCallback = (req, resolve, reject, requiredRights) => async (err, user, info) => {
-  if (err || info || !user) {
-    return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
-  }
-  req.user = user;
-
-  if (requiredRights.length) {
-    const userRights = roleRights.get(user.role);
-    const hasRequiredRights = requiredRights.every((requiredRight) => userRights.includes(requiredRight));
-    if (!hasRequiredRights && req.params.userId !== user.id) {
-      return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+/**
+ * Authentication: "who are you?" → 401 when the access token is missing, invalid,
+ * expired, or belongs to a user who is no longer active.
+ * On success `req.user` is the User document with `role` populated.
+ */
+const auth = () => (req, res, next) => {
+  passport.authenticate('jwt', { session: false }, (err, user, info) => {
+    if (err || info || !user) {
+      return next(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
     }
-  }
-
-  resolve();
+    req.user = user;
+    next();
+  })(req, res, next);
 };
 
-const auth =
-  (...requiredRights) =>
-  async (req, res, next) => {
-    return new Promise((resolve, reject) => {
-      passport.authenticate('jwt', { session: false }, verifyCallback(req, resolve, reject, requiredRights))(req, res, next);
-    })
-      .then(() => next())
-      .catch((err) => next(err));
-  };
+/**
+ * Authorization: "are you allowed?" → 403 unless the user holds EVERY listed permission.
+ * Must run after auth().
+ *
+ * Keys are checked against the catalog when the route is defined, so a typo like
+ * authorize('bug:raed') crashes at boot instead of silently denying everyone.
+ *
+ * @param {...string} requiredPermissions
+ */
+const authorize = (...requiredPermissions) => {
+  const unknown = requiredPermissions.filter((perm) => !isValidPermission(perm));
+  if (unknown.length) {
+    throw new Error(`authorize(): unknown permission(s): ${unknown.join(', ')}`);
+  }
 
-export default auth;
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
+    }
+    const granted = req.user.getPermissions();
+    const allowed = requiredPermissions.every((perm) => granted.includes(perm));
+    if (!allowed) {
+      return next(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+    }
+    next();
+  };
+};
+
+export { auth, authorize };

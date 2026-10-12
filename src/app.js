@@ -1,8 +1,8 @@
 import express from 'express';
 import helmet from 'helmet';
-import xss from 'xss-clean';
 import mongoSanitize from 'express-mongo-sanitize';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import passport from 'passport';
 import httpStatus from 'http-status';
@@ -16,6 +16,13 @@ import ApiError from './utils/ApiError.js';
 
 const app = express();
 
+// In production we sit behind exactly one proxy (Nginx or Railway's edge). Trusting it gives
+// rate limiting the real client IP and lets req.secure reflect the original HTTPS request.
+// Not enabled locally: with no proxy, trusting X-Forwarded-For would let clients spoof their IP.
+if (config.env === 'production') {
+  app.set('trust proxy', 1);
+}
+
 if (config.env !== 'test') {
   app.use(morgan.successHandler);
   app.use(morgan.errorHandler);
@@ -25,21 +32,25 @@ if (config.env !== 'test') {
 app.use(helmet());
 
 // parse json request body
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 // parse urlencoded request body
 app.use(express.urlencoded({ extended: true }));
 
-// sanitize request data
-app.use(xss());
+// parse cookies (the refresh token lives in an httpOnly cookie)
+app.use(cookieParser());
+
+// strip `$` and `.` keys from input so a body like { "email": { "$gt": "" } } can't become a Mongo operator.
+// No xss-clean: it HTML-escapes stored text (breaking code pasted into bugs/chat). Output is escaped by the UI.
 app.use(mongoSanitize());
 
 // gzip compression
 app.use(compression());
 
-// enable cors
-app.use(cors());
-app.options('*', cors());
+// cors: only the web app may call the API with credentials (cookies)
+const corsOptions = { origin: config.clientUrl, credentials: true };
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // jwt authentication
 app.use(passport.initialize());
