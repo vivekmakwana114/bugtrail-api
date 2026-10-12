@@ -1,5 +1,7 @@
 import { faker } from '@faker-js/faker';
-import { Role, User } from '../../../src/models/index.js';
+import { User } from '../../../src/models/index.js';
+import { allPermissions } from '../../../src/config/permissions.js';
+import { getRolePermissions } from '../../../src/config/roles.js';
 
 describe('User model', () => {
   describe('User validation', () => {
@@ -30,8 +32,8 @@ describe('User model', () => {
       await expect(new User({ ...newUser, password: '11111111' }).validate()).rejects.toThrow();
     });
 
-    test('should throw a validation error if role is not an ObjectId', async () => {
-      newUser.role = 'admin';
+    test('should throw a validation error if role is not in the enum', async () => {
+      newUser.role = 'superuser';
       await expect(new User(newUser).validate()).rejects.toThrow();
     });
 
@@ -42,18 +44,27 @@ describe('User model', () => {
   });
 
   describe('User getPermissions()', () => {
-    const newUserDoc = () => new User({ name: 'A', email: 'a@example.com', password: 'password1' });
+    const newUserDoc = (role) => new User({ name: 'A', email: 'a@example.com', password: 'password1', role });
 
-    test('should return the populated role permissions', () => {
-      const user = newUserDoc();
-      user.role = new Role({ name: 'QA', permissions: ['bug:read', 'bug:verify'] }); // behaves like a populated ref
-      expect(user.getPermissions()).toEqual(['bug:read', 'bug:verify']);
+    test("should return the role's permissions from code", () => {
+      const user = newUserDoc('qa');
+      expect(user.getPermissions()).toEqual(getRolePermissions('qa'));
       expect(user.hasPermission('bug:verify')).toBe(true);
       expect(user.hasPermission('bug:delete')).toBe(false);
     });
 
+    test('should give a Developer no verify rights', () => {
+      expect(newUserDoc('developer').hasPermission('bug:verify')).toBe(false);
+    });
+
+    test('should always return the full catalog for Admin', () => {
+      const user = newUserDoc('admin');
+      expect(user.isAdmin()).toBe(true);
+      expect(user.getPermissions()).toEqual([...allPermissions]);
+    });
+
     test('should fail closed (no permissions) when the user has no role', () => {
-      expect(newUserDoc().getPermissions()).toEqual([]);
+      expect(newUserDoc(null).getPermissions()).toEqual([]);
     });
   });
 

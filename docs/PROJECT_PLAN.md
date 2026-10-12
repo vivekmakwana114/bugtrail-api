@@ -46,6 +46,15 @@ There are two repos:
 
 ## 2. Access control
 
+> **Changed on 2026-10-09 (Phase 2), this note overrides the rest of this section:**
+> - There is **no Role collection** and no role CRUD. `User.role` is an enum: `admin | project_manager | developer | qa`, assigned by the Admin when approving a user.
+> - What each role can do is defined in code (`src/config/roles.js`), using the matrix below. Permissions are never stored or edited per user; changing a role's permissions is a code change.
+> - `npm run seed` creates only the Admin (it asks for email and password).
+> - Every endpoint returns a server-chosen shape through serializers (`src/serializers/`), never whole documents.
+> - The `role:*` permissions were dropped. `GET /roles` is a read-only catalog of the four roles and their permissions.
+> - The escalation guards still apply: only an Admin assigns Admin, you can't assign a role or manage a user with permissions you don't hold, you can't change your own role, and the last active Admin is protected.
+> - See `docs/learning/02-auth-and-rbac.md` §3 for the trade-off.
+
 **The permission catalog lives in code. Which role has which permission lives in the DB.**
 - `src/config/permissions.js` lists the permission keys, grouped for the UI:
   - `dashboard:view`, `dashboard:view_performance`

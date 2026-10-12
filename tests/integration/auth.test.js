@@ -11,7 +11,7 @@ import { auth, authorize } from '../../src/middlewares/auth.js';
 import { tokenService, emailService } from '../../src/services/index.js';
 import ApiError from '../../src/utils/ApiError.js';
 import setupTestDB from '../utils/setupTestDB.js';
-import { Role, User, Token } from '../../src/models/index.js';
+import { User, Token } from '../../src/models/index.js';
 import { tokenTypes } from '../../src/config/tokens.js';
 import { userStatuses } from '../../src/config/userStatuses.js';
 import { allPermissions } from '../../src/config/permissions.js';
@@ -52,7 +52,8 @@ describe('Auth routes', () => {
       const res = await request(app).post('/v1/auth/register').send(newUser).expect(httpStatus.CREATED);
 
       expect(res.body.user).not.toHaveProperty('password');
-      expect(res.body.user).toMatchObject({ name: newUser.name, email: newUser.email, role: null, status: 'pending' });
+      // Registration returns only what the client needs: no role, permissions or dates.
+      expect(res.body.user).toEqual({ id: expect.any(String), name: newUser.name, email: newUser.email, status: 'pending' });
       expect(res.body).not.toHaveProperty('tokens');
       expect(getRefreshSetCookie(res)).toBeUndefined();
 
@@ -62,10 +63,9 @@ describe('Auth routes', () => {
     });
 
     test('should reject role and status sent by the client', async () => {
-      const roles = await insertUsers([]);
       const res = await request(app)
         .post('/v1/auth/register')
-        .send({ ...newUser, role: roles.admin.id, status: 'active' })
+        .send({ ...newUser, role: 'admin', status: 'active' })
         .expect(httpStatus.BAD_REQUEST);
 
       expect(res.body.message).toMatch(/not allowed/);
@@ -99,7 +99,7 @@ describe('Auth routes', () => {
   });
 
   describe('POST /v1/auth/login', () => {
-    test('should return 200 with user, permissions and access token, and set an httpOnly refresh cookie', async () => {
+    test('should return 200 with the user detail and access token, and set an httpOnly refresh cookie', async () => {
       await insertUsers([userOne]);
 
       const res = await request(app)
@@ -107,10 +107,12 @@ describe('Auth routes', () => {
         .send({ email: userOne.email, password: userOne.password })
         .expect(httpStatus.OK);
 
-      expect(res.body.user).toMatchObject({ id: userOne._id.toHexString(), email: userOne.email, status: 'active' });
-      expect(res.body.user.role).toMatchObject({ slug: 'developer', name: 'Developer' });
-      expect(res.body.permissions).toEqual(expect.arrayContaining(['bug:read', 'bug:progress']));
-      expect(res.body.permissions).not.toContain('bug:verify');
+      expect(Object.keys(res.body.user).sort()).toEqual(
+        ['avatarUrl', 'createdAt', 'email', 'id', 'lastLoginAt', 'name', 'permissions', 'role', 'status'].sort(),
+      );
+      expect(res.body.user).toMatchObject({ id: userOne._id.toHexString(), email: userOne.email, role: 'developer' });
+      expect(res.body.user.permissions).toEqual(expect.arrayContaining(['bug:read', 'bug:progress']));
+      expect(res.body.user.permissions).not.toContain('bug:verify');
       expect(res.body.tokens).toEqual({ access: { token: expect.any(String), expires: expect.any(String) } });
 
       const cookie = getRefreshSetCookie(res);
@@ -270,16 +272,16 @@ describe('Auth routes', () => {
   });
 
   describe('GET /v1/auth/me', () => {
-    test('should return the user with populated role and effective permissions', async () => {
+    test('should return the user detail with role and effective permissions', async () => {
       await insertUsers([admin]);
       const res = await request(app)
         .get('/v1/auth/me')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(httpStatus.OK);
 
-      expect(res.body.user).toMatchObject({ email: admin.email, role: { slug: 'admin', isSystem: true } });
+      expect(res.body.user).toMatchObject({ email: admin.email, role: 'admin' });
       expect(res.body.user).not.toHaveProperty('password');
-      expect(res.body.permissions.sort()).toEqual([...allPermissions].sort());
+      expect(res.body.user.permissions.sort()).toEqual([...allPermissions].sort());
     });
 
     test('should return 401 without an access token', async () => {
@@ -400,7 +402,7 @@ const runMiddleware = (middleware, req) =>
   });
 
 describe('auth() middleware (authentication)', () => {
-  test('should call next with no error and set req.user with a populated role', async () => {
+  test('should call next with no error and set req.user', async () => {
     await insertUsers([userOne]);
     const req = httpMocks.createRequest({ headers: { Authorization: `Bearer ${userOneAccessToken}` } });
 
@@ -408,7 +410,7 @@ describe('auth() middleware (authentication)', () => {
 
     expect(err).toBeUndefined();
     expect(req.user._id).toEqual(userOne._id);
-    expect(req.user.role.slug).toBe('developer');
+    expect(req.user.role).toBe('developer');
   });
 
   test.each([
@@ -449,7 +451,7 @@ describe('auth() middleware (authentication)', () => {
 
 describe('authorize() middleware (authorization)', () => {
   const authenticatedRequest = async (user) => {
-    const dbUser = await User.findById(user._id).populate('role');
+    const dbUser = await User.findById(user._id);
     return httpMocks.createRequest({ user: dbUser });
   };
 
@@ -469,15 +471,14 @@ describe('authorize() middleware (authorization)', () => {
     expect(err).toMatchObject({ statusCode: httpStatus.FORBIDDEN, message: 'Forbidden' });
   });
 
-  test('should grant Admin every permission, even if its stored list was tampered with', async () => {
+  test('should grant Admin every permission in the catalog', async () => {
     await insertUsers([admin]);
-    await Role.updateOne({ slug: 'admin' }, { $set: { permissions: [] } }); // bypasses model hooks on purpose
-    const err = await runMiddleware(authorize('role:delete', 'user:approve'), await authenticatedRequest(admin));
+    const err = await runMiddleware(authorize('user:delete', 'user:approve'), await authenticatedRequest(admin));
     expect(err).toBeUndefined();
   });
 
   test('should call next with 403 for a user with no role', async () => {
-    const roleless = { ...userOne, roleSlug: null };
+    const roleless = { ...userOne, role: null };
     await insertUsers([roleless]);
     const err = await runMiddleware(authorize('bug:read'), await authenticatedRequest(roleless));
     expect(err).toMatchObject({ statusCode: httpStatus.FORBIDDEN });
@@ -488,12 +489,12 @@ describe('authorize() middleware (authorization)', () => {
     expect(err).toMatchObject({ statusCode: httpStatus.UNAUTHORIZED });
   });
 
-  test('should apply a role edit on the very next request, with the same access token', async () => {
+  test('should apply a role change on the very next request, with the same access token', async () => {
     await insertUsers([projectManager]);
     const call = () => request(app).get('/v1/users').set('Authorization', `Bearer ${projectManagerAccessToken}`);
 
     await call().expect(httpStatus.OK);
-    await Role.updateOne({ slug: 'project-manager' }, { $pull: { permissions: 'user:read' } });
+    await User.updateOne({ _id: projectManager._id }, { $set: { role: 'developer' } }); // developers lack user:read
     await call().expect(httpStatus.FORBIDDEN);
   });
 });

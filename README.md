@@ -37,13 +37,16 @@ There's no Docker and no Redis. You only need Node.js and MongoDB.
 npm install
 cp .env.example .env      # Command Prompt: copy .env.example .env
 ```
-Then edit `.env`. At minimum set `MONGODB_URL`, a long random `JWT_SECRET`, and the `SEED_ADMIN_*` values.
+Then edit `.env`. At minimum set `MONGODB_URL` and a long random `JWT_SECRET`.
 
-### 3. Seed roles and the first Admin
+### 3. Create the Admin
 ```bash
 npm run seed
 ```
-This creates the four default roles (Admin, Project Manager, Developer, QA) and an active Admin user from `SEED_ADMIN_*`. It's idempotent: re-running it never duplicates roles or overwrites permissions an Admin has edited.
+It asks for the Admin's **email**, then a **password** (masked, typed twice). It creates only the Admin; everyone else registers and the Admin approves them with a role. If an active Admin already exists, it does nothing.
+
+- Run it from **PowerShell or Command Prompt**. Git Bash's default terminal can't hide input, so there use `winpty npm run seed`.
+- With no terminal at all (Railway, CI), it reads `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` instead.
 
 ### 4. Run
 ```bash
@@ -55,14 +58,19 @@ npm run dev       # nodemon, http://localhost:5000/v1
 Emails are logged to the console while `EMAIL_ENABLED=false` (the default), so password-reset links are visible in local dev without SMTP.
 
 ## Authentication in one paragraph
-Login returns a short-lived **access token** in the body (the web app keeps it in memory) and sets the **refresh token** as an `httpOnly` cookie scoped to `/v1/auth`. The web app calls `POST /v1/auth/refresh-tokens` (cookie only, no body) to get a new access token, and each refresh rotates the cookie. Self-registered accounts start `pending` and can't log in until approved. Permissions come from the user's **Role** document, re-read on every request, so role edits and suspensions apply immediately. See [`docs/learning/02-auth-and-rbac.md`](docs/learning/02-auth-and-rbac.md).
+Login returns a short-lived **access token** in the body (the web app keeps it in memory) and sets the **refresh token** as an `httpOnly` cookie scoped to `/v1/auth`. The web app calls `POST /v1/auth/refresh-tokens` (cookie only, no body) to get a new access token, and each refresh rotates the cookie. Self-registered accounts start `pending` and can't log in until an Admin approves them with a role (`admin`, `project_manager`, `developer` or `qa`). What each role can do is defined in code (`src/config/roles.js`); the user is re-read on every request, so role changes and suspensions apply immediately. See [`docs/learning/02-auth-and-rbac.md`](docs/learning/02-auth-and-rbac.md).
+
+## Try the API
+- **Postman:** import [`docs/postman/BugTrail.postman_collection.json`](docs/postman/README.md), one folder per module (Health, Auth, Roles, Users).
+- **Swagger:** http://localhost:5000/v1/docs (development only).
 
 ## Scripts
 
 | Script | What it does |
 |---|---|
 | `npm run dev` | Start with nodemon (auto-restart on change) |
-| `npm run seed` | Create default roles + first Admin (idempotent) |
+| `npm run seed` | Create the first Admin (asks for email + password; idempotent) |
+| `npm run postman` | Regenerate the Postman collection from `docs/postman/build-collection.js` |
 | `npm start` | Start with PM2 in the foreground (production) |
 | `npm test` | Run the Jest suite (in-memory MongoDB, no setup needed) |
 | `npm run coverage` | Tests with a coverage report |
@@ -82,13 +90,14 @@ src/
   models/        Mongoose schemas + plugins (paginate, toJSON)
   routes/v1/     route definitions, wired to validation + auth + controllers
   services/      business logic (the only layer that touches models)
-  scripts/       one-off CLIs (seed)
+  scripts/       one-off CLIs (seed + terminal prompts)
+  serializers/   response shapes: what each endpoint returns
   utils/         ApiError, catchAsync, pick, refresh cookie helpers
   validations/   Joi schemas per route
   app.js         Express app (middleware stack)
   index.js       entry point: DB connection + HTTP server
 tests/           unit + integration tests, fixtures
-docs/            plan, deployment, learning notes
+docs/            plan, deployment, learning notes, Postman collection
 ```
 
 **How a request flows:** `route → validate(Joi) → auth/authorize → controller → service → model`. Errors thrown anywhere become an `ApiError` and are formatted by the error middleware.

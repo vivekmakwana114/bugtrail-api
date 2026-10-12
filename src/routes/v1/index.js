@@ -2,6 +2,7 @@ import express from 'express';
 import authRoute from './auth.route.js';
 import healthRoute from './health.route.js';
 import userRoute from './user.route.js';
+import roleRoute from './role.route.js';
 import docsRoute from './docs.route.js';
 import config from '../../config/config.js';
 
@@ -19,6 +20,10 @@ const defaultRoutes = [
   {
     path: '/users',
     route: userRoute,
+  },
+  {
+    path: '/roles',
+    route: roleRoute,
   },
 ];
 

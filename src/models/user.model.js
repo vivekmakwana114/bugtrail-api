@@ -3,6 +3,7 @@ import validator from 'validator';
 import bcrypt from 'bcryptjs';
 import { toJSON, paginate } from './plugins/index.js';
 import { userStatuses } from '../config/userStatuses.js';
+import { roles, roleValues, getRolePermissions } from '../config/roles.js';
 
 const userSchema = mongoose.Schema(
   {
@@ -36,10 +37,12 @@ const userSchema = mongoose.Schema(
       private: true, // used by the toJSON plugin
     },
     // A pending self-registered user has no role until an approver assigns one.
+    // Permissions are derived from this (config/roles.js); they are not stored.
     role: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: 'Role',
+      type: String,
+      enum: [...roleValues, null],
       default: null,
+      index: true,
     },
     status: {
       type: String,
@@ -87,17 +90,17 @@ userSchema.methods.isPasswordMatch = async function (password) {
   return bcrypt.compare(password, user.password);
 };
 
+/** @returns {boolean} */
+userSchema.methods.isAdmin = function () {
+  return this.role === roles.ADMIN;
+};
+
 /**
- * Permissions granted through the user's role. Requires `role` to be populated.
- * Fails closed: no role (or an unpopulated one) means no permissions, never all of them.
+ * Permissions come from the role, defined in code. A user with no role has none (fails closed).
  * @returns {string[]}
  */
 userSchema.methods.getPermissions = function () {
-  const { role } = this;
-  if (!role || typeof role.getPermissions !== 'function') {
-    return [];
-  }
-  return role.getPermissions();
+  return getRolePermissions(this.role);
 };
 
 /**

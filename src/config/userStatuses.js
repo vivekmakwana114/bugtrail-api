@@ -12,4 +12,18 @@ const userStatuses = Object.freeze({
   REJECTED: 'rejected',
 });
 
-export { userStatuses };
+/**
+ * Which status changes PATCH /users/:id/status allows. Anything else is a 400.
+ *   pending   → active (approve, needs a role) | rejected
+ *   active    → suspended
+ *   suspended → active (reactivate)
+ *   rejected  → active (changed our mind, needs a role)
+ */
+const allowedStatusTransitions = Object.freeze({
+  [userStatuses.PENDING]: [userStatuses.ACTIVE, userStatuses.REJECTED],
+  [userStatuses.ACTIVE]: [userStatuses.SUSPENDED],
+  [userStatuses.SUSPENDED]: [userStatuses.ACTIVE],
+  [userStatuses.REJECTED]: [userStatuses.ACTIVE],
+});
+
+export { userStatuses, allowedStatusTransitions };

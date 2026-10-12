@@ -30,7 +30,7 @@ const register = async ({ name, email, password }) => {
  * whether an account exists or is pending.
  * @param {string} email
  * @param {string} password
- * @returns {Promise<User>} user with role populated
+ * @returns {Promise<User>}
  */
 const loginUserWithEmailAndPassword = async (email, password) => {
   const user = await userService.getUserByEmail(email);
@@ -42,7 +42,7 @@ const loginUserWithEmailAndPassword = async (email, password) => {
   }
   user.lastLoginAt = new Date();
   await user.save();
-  return user.populate('role');
+  return user;
 };
 
 /**
@@ -118,8 +118,28 @@ const resetPassword = async (resetPasswordToken, newPassword) => {
   }
 };
 
+/**
+ * Change your own password. Every refresh token is revoked (signing out other devices) and a
+ * fresh pair is returned, so the caller's own session continues.
+ * Wrong current password is a 400, not a 401: the web app treats 401 as "session expired"
+ * and would log the user out for a typo.
+ * @param {User} user - the logged-in user
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<Object>} tokens
+ */
+const changePassword = async (user, currentPassword, newPassword) => {
+  if (!(await user.isPasswordMatch(currentPassword))) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Current password is incorrect');
+  }
+  await userService.updateUserById(user._id, { password: newPassword });
+  await Token.deleteMany({ user: user._id, type: tokenTypes.REFRESH });
+  return tokenService.generateAuthTokens(user);
+};
+
 export default {
   register,
+  changePassword,
   loginUserWithEmailAndPassword,
   logout,
   refreshAuth,

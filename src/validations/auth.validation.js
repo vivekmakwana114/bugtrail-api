@@ -31,6 +31,15 @@ const resetPassword = {
   }),
 };
 
+const changePassword = {
+  body: Joi.object().keys({
+    currentPassword: Joi.string().required(),
+    newPassword: Joi.string().required().custom(password).invalid(Joi.ref('currentPassword')).messages({
+      'any.invalid': 'newPassword must be different from currentPassword',
+    }),
+  }),
+};
+
 // logout and refresh-tokens read the httpOnly cookie, so they take no body.
 
 export default {
@@ -38,4 +47,5 @@ export default {
   login,
   forgotPassword,
   resetPassword,
+  changePassword,
 };

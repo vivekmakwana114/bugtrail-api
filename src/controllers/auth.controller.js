@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync.js';
 import { authService, tokenService } from '../services/index.js';
+import { userSerializer } from '../serializers/index.js';
 import { setRefreshCookie, clearRefreshCookie, readRefreshCookie } from '../utils/refreshCookie.js';
 
 /**
@@ -17,14 +18,17 @@ const issueTokens = (res, tokens) => {
 
 const register = catchAsync(async (req, res) => {
   const user = await authService.register(req.body);
-  res.status(httpStatus.CREATED).send({ user, message: 'Registration received. An admin will review your account.' });
+  res.status(httpStatus.CREATED).send({
+    user: userSerializer.registration(user),
+    message: 'Registration received. An admin will review your account.',
+  });
 });
 
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.loginUserWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(user);
-  res.send({ user, permissions: user.getPermissions(), tokens: issueTokens(res, tokens) });
+  res.send({ user: userSerializer.userDetail(user), tokens: issueTokens(res, tokens) });
 });
 
 const logout = catchAsync(async (req, res) => {
@@ -55,8 +59,14 @@ const resetPassword = catchAsync(async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 });
 
+const changePassword = catchAsync(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const tokens = await authService.changePassword(req.user, currentPassword, newPassword);
+  res.send({ tokens: issueTokens(res, tokens) });
+});
+
 const getMe = catchAsync(async (req, res) => {
-  res.send({ user: req.user, permissions: req.user.getPermissions() });
+  res.send({ user: userSerializer.userDetail(req.user) });
 });
 
 export default {
@@ -66,5 +76,6 @@ export default {
   refreshTokens,
   forgotPassword,
   resetPassword,
+  changePassword,
   getMe,
 };
