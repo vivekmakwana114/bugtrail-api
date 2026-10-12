@@ -1,1 +1,2 @@
+export { default as projectSerializer } from './project.serializer.js';
 export { default as userSerializer } from './user.serializer.js';

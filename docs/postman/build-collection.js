@@ -63,7 +63,7 @@ const collection = {
       '',
       '1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.',
       '2. **Auth → Login** (saves `accessToken`).',
-      '3. Anything else. Ids created along the way (`userId`, `pendingUserId`) are saved automatically.',
+      '3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`) are saved automatically.',
       'Or just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.',
       '',
       'Roles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code',
@@ -86,6 +86,8 @@ const collection = {
     { key: 'userId', value: '' },
     { key: 'pendingUserId', value: '' },
     { key: 'resetToken', value: '' },
+    { key: 'projectId', value: '' },
+    { key: 'projectKey', value: '' },
   ],
   item: [
     folder('Health', 'Liveness + MongoDB check. No auth.', [
@@ -272,6 +274,77 @@ const collection = {
         description: "Requires `user:delete`. You can't delete yourself or the last active Admin. Prefer suspending.",
       }),
     ]),
+
+    folder(
+      'Projects',
+      "Projects, members and the bug summary behind each card's pie. You see the projects you're a member of; Admin (project:read_all) sees all. A project outside your scope is a 404.",
+      [
+        req({
+          name: 'Create project',
+          method: 'POST',
+          path: '/projects',
+          // Keys are unique forever (deleted projects keep theirs), so each run makes a fresh one.
+          prerequest: [
+            "const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
+            "let key = 'P';",
+            'for (let i = 0; i < 5; i += 1) { key += letters[Math.floor(Math.random() * letters.length)]; }',
+            "pm.collectionVariables.set('projectKey', key);",
+          ],
+          body: { name: 'Demo project {{projectKey}}', key: '{{projectKey}}', description: 'Created from Postman' },
+          tests: [ok(201), saveVar('projectId', 'pm.response.json().id')],
+          description:
+            'Requires `project:create` (Admin). `key` (2-10 letters/digits, starts with a letter) prefixes every bug key (BT-42); stored uppercase, unique, never changes. Optional: `manager` (a PM or Admin, auto-added as member), `members` (active user ids), `status`.',
+        }),
+        req({
+          name: 'List projects',
+          method: 'GET',
+          path: '/projects?sortBy=name:asc&limit=10&page=1',
+          tests: [ok()],
+          description:
+            'Requires `project:read`. Filters: status (active | completed | archived), search (name or key). Each item has `bugSummary` (byStatus counts, open count and the 3-slice `pie`).',
+        }),
+        req({
+          name: 'Get project',
+          method: 'GET',
+          path: '/projects/{{projectId}}',
+          tests: [ok()],
+          description: 'Detail with description, manager and members.',
+        }),
+        req({
+          name: 'Update project',
+          method: 'PATCH',
+          path: '/projects/{{projectId}}',
+          body: { description: 'Updated from Postman', status: 'active' },
+          tests: [ok()],
+          description:
+            "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+        }),
+        req({
+          name: 'Add members',
+          method: 'POST',
+          path: '/projects/{{projectId}}/members',
+          body: { userIds: ['{{pendingUserId}}'] },
+          tests: [ok()],
+          description:
+            'Requires `project:manage_members`. Idempotent; only active users. Uses the user approved in Users → Approve user. Returns the full member list.',
+        }),
+        req({
+          name: 'Remove member',
+          method: 'DELETE',
+          path: '/projects/{{projectId}}/members/{{pendingUserId}}',
+          tests: [ok()],
+          description: "The project manager can't be removed; change the manager first. Returns the full member list.",
+        }),
+        req({
+          name: 'Delete project',
+          method: 'DELETE',
+          path: '/projects/{{projectId}}',
+          tests: [ok(204)],
+          description:
+            'Requires `project:delete` (Admin). Soft delete: hidden everywhere, history kept, key stays reserved.',
+        }),
+      ],
+    ),
   ],
 };
 

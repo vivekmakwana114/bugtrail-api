@@ -287,8 +287,8 @@ We follow the four principles from Katie Dill's (Stripe) talk. The goal is a pan
 0. **Phase 0:** rename and clean both repos, scaffold the frontend, add `docs/PROJECT_PLAN.md`.
 1. **Phase 1:** backend foundation (config, CORS + cookies, remove xss-clean, permission catalog, Role, User changes, `auth`/`authorize`, seed, auth flows, test setup).
 2. **Phase 2:** users (with approval) + roles.
-3. **Phase 3:** projects + members + scope helper + pie summary.
-4. **Phase 4:** bugs, status rules, fail count, activity, time tracking.
+3. **Phase 3:** projects + members + scope helper + pie summary. *(2026-10-12: `GET /projects/:id/modules` moved to Phase 4, since it reads module names from bugs.)*
+4. **Phase 4:** bugs, status rules, fail count, activity, time tracking, `GET /projects/:id/modules`.
 5. **Phase 5:** Socket.IO, chat, notifications, `sendEmail` + email outbox.
 6. **Phase 6:** dashboard endpoints + Swagger docs.
 7. **Phase 7 (frontend):** style tile + tokens + templates (approval gate) → auth → layout → projects grid → ticket grid → report form → bug detail + chat → dashboard → users → roles → notifications.

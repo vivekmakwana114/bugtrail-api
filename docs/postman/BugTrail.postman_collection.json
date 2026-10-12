@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "BugTrail APIs",
-    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
+    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -41,6 +41,14 @@
     },
     {
       "key": "resetToken",
+      "value": ""
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "projectKey",
       "value": ""
     }
   ],
@@ -957,6 +965,292 @@
               ]
             },
             "description": "Requires `user:delete`. You can't delete yourself or the last active Admin. Prefer suspending."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "description": "Projects, members and the bug summary behind each card's pie. You see the projects you're a member of; Admin (project:read_all) sees all. A project outside your scope is a 404.",
+      "item": [
+        {
+          "name": "Create project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ]
+            },
+            "description": "Requires `project:create` (Admin). `key` (2-10 letters/digits, starts with a letter) prefixes every bug key (BT-42); stored uppercase, unique, never changes. Optional: `manager` (a PM or Admin, auto-added as member), `members` (active user ids), `status`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo project {{projectKey}}\",\n  \"key\": \"{{projectKey}}\",\n  \"description\": \"Created from Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
+                  "let key = 'P';",
+                  "for (let i = 0; i < 5; i += 1) { key += letters[Math.floor(Math.random() * letters.length)]; }",
+                  "pm.collectionVariables.set('projectKey', key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) { pm.collectionVariables.set('projectId', pm.response.json().id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects?sortBy=name:asc&limit=10&page=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "sortBy",
+                  "value": "name:asc"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Requires `project:read`. Filters: status (active | completed | archived), search (name or key). Each item has `bugSummary` (byStatus counts, open count and the 3-slice `pie`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get project",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Detail with description, manager and members."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update project",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated from Postman\",\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add members",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "members"
+              ]
+            },
+            "description": "Requires `project:manage_members`. Idempotent; only active users. Uses the user approved in Users → Approve user. Returns the full member list.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\n    \"{{pendingUserId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members/{{pendingUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "members",
+                "{{pendingUserId}}"
+              ]
+            },
+            "description": "The project manager can't be removed; change the manager first. Returns the full member list."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Requires `project:delete` (Admin). Soft delete: hidden everywhere, history kept, key stays reserved."
           },
           "response": [],
           "event": [

@@ -1,0 +1,288 @@
+import mongoose from 'mongoose';
+import httpStatus from 'http-status';
+import { Project, User } from '../models/index.js';
+import ApiError from '../utils/ApiError.js';
+import escapeRegex from '../utils/escapeRegex.js';
+import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
+import { userStatuses } from '../config/userStatuses.js';
+import { bugStatusValues, bugStatuses, pieSlices } from '../config/bugStatuses.js';
+import { userSummaryFields } from '../serializers/user.serializer.js';
+
+/*
+ * Every function that takes a project id loads it through getProjectOrThrow(actor, id),
+ * which applies the caller's project scope. A project you can't see is a 404, never a 403:
+ * "forbidden" would confirm that a project with that id exists.
+ */
+
+/* ------------------------------------------------------------------ helpers */
+
+/**
+ * @param {User} actor
+ * @param {ObjectId|string} projectId
+ * @returns {Promise<Project>}
+ */
+const getProjectOrThrow = async (actor, projectId) => {
+  const project = await Project.findOne({ _id: projectId, ...projectScopeFilter(actor) });
+  if (!project) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Project not found');
+  }
+  return project;
+};
+
+/**
+ * Only active users with a role can join a project (not pending, suspended or rejected ones).
+ * @param {Array<ObjectId|string>} userIds
+ * @returns {Promise<User[]>}
+ */
+const getAssignableUsersOrThrow = async (userIds) => {
+  const ids = [...new Set(userIds.map(String))];
+  const users = await User.find({ _id: { $in: ids }, status: userStatuses.ACTIVE, role: { $ne: null } });
+  if (users.length !== ids.length) {
+    const found = new Set(users.map((user) => user.id));
+    const invalid = ids.filter((id) => !found.has(id));
+    throw new ApiError(httpStatus.BAD_REQUEST, `These users don't exist or aren't active: ${invalid.join(', ')}`);
+  }
+  return users;
+};
+
+/**
+ * The manager runs the project, so they must be able to manage its members (PM or Admin).
+ * @param {User} user
+ */
+const assertCanBeManager = (user) => {
+  if (!user.hasPermission('project:manage_members')) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'The manager must be able to manage project members (a Project Manager or an Admin)',
+    );
+  }
+};
+
+/**
+ * @param {Object<string, number>} [counts] - status → count
+ * @returns {{ total: number, open: number, byStatus: Object, pie: Object }}
+ *   open = everything not passed yet (the number in the middle of the card's ring)
+ */
+const buildBugSummary = (counts = {}) => {
+  const byStatus = Object.fromEntries(bugStatusValues.map((status) => [status, counts[status] ?? 0]));
+  const total = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
+  const pie = Object.fromEntries(
+    Object.entries(pieSlices).map(([slice, statuses]) => [slice, statuses.reduce((sum, s) => sum + byStatus[s], 0)]),
+  );
+  return { total, open: total - byStatus[bugStatuses.PASS], byStatus, pie };
+};
+
+/**
+ * Per-status bug counts for a set of projects, in one aggregation (not one query per card).
+ * Soft-deleted bugs don't count.
+ *
+ * Phase 3 note: the Bug model arrives in Phase 4, so this reads the `bugs` collection directly.
+ * Phase 4 replaces `mongoose.connection.db.collection('bugs')` with `Bug` and nothing else changes.
+ *
+ * @param {ObjectId[]} projectIds
+ * @returns {Promise<Map<string, Object>>} project id → bug summary (projects without bugs are absent)
+ */
+const getBugSummaries = async (projectIds) => {
+  if (!projectIds.length) {
+    return new Map();
+  }
+  const rows = await mongoose.connection.db
+    .collection('bugs')
+    .aggregate([
+      { $match: { project: { $in: projectIds }, deletedAt: null } },
+      { $group: { _id: { project: '$project', status: '$status' }, count: { $sum: 1 } } },
+    ])
+    .toArray();
+
+  const countsByProject = new Map();
+  rows.forEach(({ _id, count }) => {
+    const id = _id.project.toString();
+    if (!countsByProject.has(id)) {
+      countsByProject.set(id, {});
+    }
+    countsByProject.get(id)[_id.status] = count;
+  });
+  return new Map([...countsByProject].map(([id, counts]) => [id, buildBugSummary(counts)]));
+};
+
+/**
+ * @param {ObjectId} projectId
+ * @returns {Promise<User[]>} members as summaries-ready user docs, sorted by name
+ */
+const getMembers = async (projectId) => {
+  const project = await Project.findById(projectId).populate({
+    path: 'members',
+    select: userSummaryFields,
+    options: { sort: { name: 1 } },
+  });
+  return project.members;
+};
+
+/**
+ * @param {Project} project
+ * @returns {Promise<{ project: Project, bugSummary: Object }>} manager + members populated
+ */
+const withDetails = async (project) => {
+  await project.populate([
+    { path: 'manager', select: userSummaryFields },
+    { path: 'members', select: userSummaryFields, options: { sort: { name: 1 } } },
+  ]);
+  const summaries = await getBugSummaries([project._id]);
+  return { project, bugSummary: summaries.get(project.id) ?? buildBugSummary() };
+};
+
+/* ------------------------------------------------------------------ queries */
+
+/**
+ * Projects the actor can see, one page at a time, each with its bug summary for the pie.
+ * @param {User} actor
+ * @param {{ status?: string, search?: string }} filter
+ * @param {Object} options - sortBy, limit, page
+ * @returns {Promise<QueryResult>} results: [{ project, bugSummary }]
+ */
+const queryProjects = async (actor, { status, search }, options) => {
+  const filter = {
+    ...(status && { status }),
+    ...(search && {
+      $or: [
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { key: { $regex: escapeRegex(search), $options: 'i' } },
+      ],
+    }),
+    ...projectScopeFilter(actor), // last, so nothing above can widen the scope
+  };
+  const page = await Project.paginate(filter, { sortBy: 'name:asc', ...options });
+  await Project.populate(page.results, { path: 'manager', select: userSummaryFields });
+  const summaries = await getBugSummaries(page.results.map((project) => project._id));
+  return {
+    ...page,
+    results: page.results.map((project) => ({ project, bugSummary: summaries.get(project.id) ?? buildBugSummary() })),
+  };
+};
+
+/**
+ * @param {User} actor
+ * @param {ObjectId} projectId
+ * @returns {Promise<{ project: Project, bugSummary: Object }>}
+ */
+const getProject = async (actor, projectId) => withDetails(await getProjectOrThrow(actor, projectId));
+
+/* ------------------------------------------------------------------ commands */
+
+/**
+ * @param {User} actor
+ * @param {{ name: string, key: string, description?: string, status?: string, manager?: string, members?: string[] }} body
+ * @returns {Promise<{ project: Project, bugSummary: Object }>}
+ */
+const createProject = async (actor, { members = [], manager = null, ...fields }) => {
+  if (await Project.isKeyTaken(fields.key)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Project key already taken');
+  }
+
+  const memberIds = [...members, ...(manager ? [manager] : [])];
+  const users = await getAssignableUsersOrThrow(memberIds);
+  if (manager) {
+    assertCanBeManager(users.find((user) => user._id.equals(manager)));
+  }
+  // Someone who can create projects but can't see all of them must not lose sight of their own.
+  if (!canSeeAllProjects(actor)) {
+    memberIds.push(actor._id);
+  }
+
+  const project = await Project.create({ ...fields, manager, members: [...new Set(memberIds.map(String))] });
+  return withDetails(project);
+};
+
+/**
+ * Name, description, status and manager. The key never changes; members have their own endpoints.
+ * @param {User} actor
+ * @param {ObjectId} projectId
+ * @param {Object} body
+ * @returns {Promise<{ project: Project, bugSummary: Object }>}
+ */
+const updateProject = async (actor, projectId, { manager, ...fields }) => {
+  const project = await getProjectOrThrow(actor, projectId);
+
+  if (manager !== undefined) {
+    if (manager !== null) {
+      if (!project.hasMember(manager)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'The manager must be a member of the project. Add them first.');
+      }
+      const [user] = await getAssignableUsersOrThrow([manager]);
+      assertCanBeManager(user);
+    }
+    project.manager = manager;
+  }
+
+  Object.assign(project, fields);
+  await project.save();
+  return withDetails(project);
+};
+
+/**
+ * Soft delete: the project disappears from every list and lookup, but its bugs and history stay
+ * intact and its key stays reserved.
+ * @param {User} actor
+ * @param {ObjectId} projectId
+ */
+const deleteProject = async (actor, projectId) => {
+  const project = await getProjectOrThrow(actor, projectId);
+  project.deletedAt = new Date();
+  await project.save();
+};
+
+/**
+ * Add members. $addToSet makes it idempotent (adding someone twice is fine) and atomic
+ * (two people adding members at the same time don't overwrite each other's change).
+ * @param {User} actor
+ * @param {ObjectId} projectId
+ * @param {string[]} userIds
+ * @returns {Promise<User[]>} the full member list
+ */
+const addMembers = async (actor, projectId, userIds) => {
+  const project = await getProjectOrThrow(actor, projectId);
+  const users = await getAssignableUsersOrThrow(userIds);
+  await Project.updateOne({ _id: project._id }, { $addToSet: { members: { $each: users.map((user) => user._id) } } });
+  // TODO(Phase 5): notify the added users ("You were added to <project>").
+  return getMembers(project._id);
+};
+
+/**
+ * @param {User} actor
+ * @param {ObjectId} projectId
+ * @param {ObjectId} userId
+ * @returns {Promise<User[]>} the full member list
+ */
+const removeMember = async (actor, projectId, userId) => {
+  const project = await getProjectOrThrow(actor, projectId);
+  if (!project.hasMember(userId)) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'This user is not a member of the project');
+  }
+  if (project.manager?.equals(userId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'This user is the project manager. Change the manager first.');
+  }
+  // TODO(Phase 4): decide what happens to bugs still assigned to the removed member.
+  await Project.updateOne({ _id: project._id }, { $pull: { members: userId } });
+  return getMembers(project._id);
+};
+
+/**
+ * Called when a user is deleted, so no project keeps a dangling member or manager id.
+ * @param {ObjectId} userId
+ */
+const removeUserFromAllProjects = async (userId) => {
+  await Project.updateMany({ manager: userId }, { $set: { manager: null } });
+  await Project.updateMany({ members: userId }, { $pull: { members: userId } });
+};
+
+export default {
+  queryProjects,
+  getProject,
+  createProject,
+  updateProject,
+  deleteProject,
+  addMembers,
+  removeMember,
+  removeUserFromAllProjects,
+  getBugSummaries,
+};

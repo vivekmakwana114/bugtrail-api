@@ -134,6 +134,12 @@ describe('User routes', () => {
       expect(res.body).toMatchObject({ page: 2, limit: 2, totalPages: 2, totalResults: 3 });
       expect(res.body.results.map((u) => u.id)).toEqual([expectedOrder[2]._id.toHexString()]);
     });
+
+    test('should return 400 when sorting by a field outside the allow-list (e.g. the password hash)', async () => {
+      await insertUsers([admin]);
+      await asAdmin(request(app).get('/v1/users')).query({ sortBy: 'password:asc' }).expect(httpStatus.BAD_REQUEST);
+      await asAdmin(request(app).get('/v1/users')).query({ sortBy: 'role:desc,name:asc' }).expect(httpStatus.OK);
+    });
   });
 
   describe('GET /v1/users/:userId', () => {
