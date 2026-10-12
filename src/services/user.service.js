@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import { Token, User } from '../models/index.js';
+import { Bug, Token, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.js';
 import { roles } from '../config/roles.js';
@@ -216,7 +216,7 @@ const updateUserStatusAsActor = async (actor, userId, { status, role }) => {
 
 /**
  * Hard delete. Prefer suspending: it keeps the user's history and can be undone.
- * TODO(Phase 4): block deleting users who reported or are assigned bugs.
+ * Users who reported or were assigned bugs can't be deleted: their names are part of the history.
  * @param {User} actor
  * @param {ObjectId} userId
  */
@@ -225,6 +225,9 @@ const deleteUserAsActor = async (actor, userId) => {
   const target = await getUserOrThrow(userId);
   assertCanManageUser(actor, target);
   await assertNotLastActiveAdmin(target);
+  if (await Bug.exists({ $or: [{ reporter: target._id }, { assignee: target._id }] })) {
+    throw new ApiError(httpStatus.CONFLICT, 'This user has reported or been assigned bugs. Suspend them instead.');
+  }
   await Token.deleteMany({ user: target._id });
   await projectService.removeUserFromAllProjects(target._id);
   await target.deleteOne();

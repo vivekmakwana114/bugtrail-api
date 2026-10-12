@@ -55,6 +55,17 @@ const req = ({ name, method, path, body, tests = [], prerequest = [], noAuth = f
 
 const folder = (name, description, item) => ({ name, description, item });
 
+/**
+ * Project keys are unique forever (deleted projects keep theirs), so each run makes a fresh one.
+ * @param {string} variable - collection variable to store it in
+ */
+const randomProjectKey = (variable) => [
+  "const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
+  "let key = 'P';",
+  'for (let i = 0; i < 5; i += 1) { key += letters[Math.floor(Math.random() * letters.length)]; }',
+  `pm.collectionVariables.set('${variable}', key);`,
+];
+
 const collection = {
   info: {
     name: 'BugTrail APIs',
@@ -63,7 +74,7 @@ const collection = {
       '',
       '1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.',
       '2. **Auth → Login** (saves `accessToken`).',
-      '3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`) are saved automatically.',
+      '3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.',
       'Or just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.',
       '',
       'Roles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code',
@@ -88,6 +99,10 @@ const collection = {
     { key: 'resetToken', value: '' },
     { key: 'projectId', value: '' },
     { key: 'projectKey', value: '' },
+    { key: 'bugProjectId', value: '' },
+    { key: 'bugProjectKey', value: '' },
+    { key: 'bugId', value: '' },
+    { key: 'bugKey', value: '' },
   ],
   item: [
     folder('Health', 'Liveness + MongoDB check. No auth.', [
@@ -283,13 +298,7 @@ const collection = {
           name: 'Create project',
           method: 'POST',
           path: '/projects',
-          // Keys are unique forever (deleted projects keep theirs), so each run makes a fresh one.
-          prerequest: [
-            "const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
-            "let key = 'P';",
-            'for (let i = 0; i < 5; i += 1) { key += letters[Math.floor(Math.random() * letters.length)]; }',
-            "pm.collectionVariables.set('projectKey', key);",
-          ],
+          prerequest: randomProjectKey('projectKey'),
           body: { name: 'Demo project {{projectKey}}', key: '{{projectKey}}', description: 'Created from Postman' },
           tests: [ok(201), saveVar('projectId', 'pm.response.json().id')],
           description:
@@ -329,6 +338,13 @@ const collection = {
             'Requires `project:manage_members`. Idempotent; only active users. Uses the user approved in Users → Approve user. Returns the full member list.',
         }),
         req({
+          name: 'Module names (autocomplete)',
+          method: 'GET',
+          path: '/projects/{{projectId}}/modules',
+          tests: [ok()],
+          description: "Distinct module/screen names used in the project's bugs, for the report form. Empty here: see Bugs.",
+        }),
+        req({
           name: 'Remove member',
           method: 'DELETE',
           path: '/projects/{{projectId}}/members/{{pendingUserId}}',
@@ -342,6 +358,136 @@ const collection = {
           tests: [ok(204)],
           description:
             'Requires `project:delete` (Admin). Soft delete: hidden everywhere, history kept, key stays reserved.',
+        }),
+      ],
+    ),
+
+    folder(
+      'Bugs',
+      [
+        'Tickets, the status workflow, assignment and the timeline. Self-contained: it creates its own project, walks one bug',
+        "through the whole lifecycle (including a QA fail) and cleans up. As Admin every move is allowed; the bug's",
+        '`allowedStatuses` shows what the current user may do. A developer (the assignee) may only do',
+        'reported → ongoing → resolved and failed → ongoing.',
+      ].join(' '),
+      [
+        req({
+          name: 'Setup: create a project with a member',
+          method: 'POST',
+          path: '/projects',
+          prerequest: randomProjectKey('bugProjectKey'),
+          body: { name: 'Bug demo {{bugProjectKey}}', key: '{{bugProjectKey}}', members: ['{{pendingUserId}}'] },
+          tests: [ok(201), saveVar('bugProjectId', 'pm.response.json().id')],
+          description: 'The member is the developer approved in Users → Approve user; the bug gets assigned to them.',
+        }),
+        req({
+          name: 'Report bug',
+          method: 'POST',
+          path: '/bugs',
+          body: {
+            project: '{{bugProjectId}}',
+            title: 'Login button does nothing on Safari',
+            moduleName: 'Login',
+            description: '1. Open /login in Safari\n2. Enter valid credentials\n3. Click "Sign in": nothing happens',
+            attachments: [{ title: 'Screen recording', url: 'https://drive.google.com/file/d/demo/view' }],
+            assignee: '{{pendingUserId}}',
+            sendEmail: false,
+          },
+          tests: [
+            ok(201),
+            saveVar('bugId', 'pm.response.json().id'),
+            saveVar('bugKey', 'pm.response.json().key'),
+            "pm.test('Key is <PROJECT>-1', () => pm.expect(pm.response.json().key).to.eql(pm.collectionVariables.get('bugProjectKey') + '-1'));",
+          ],
+          description:
+            'Requires `bug:create`. Gets the next number (key like BT-42). Status defaults to reported. Attachments: Google Drive links only. `sendEmail` (the "Send email" checkbox) is accepted now; emails arrive in Phase 5.',
+        }),
+        req({
+          name: 'List bugs (ticket grid)',
+          method: 'GET',
+          path: '/bugs?projectId={{bugProjectId}}&sortBy=age:desc&limit=20&page=1',
+          tests: [ok()],
+          description:
+            'Requires `bug:read`. Filters: status (comma-separated), assignee (id | me | none), moduleName, search (title/module, or a key like BT-42). sortBy: age | failCount | updatedAt | createdAt | bugNumber. Without projectId: every project you can see.',
+        }),
+        req({
+          name: 'My open bugs',
+          method: 'GET',
+          path: '/bugs?assignee=me&status=reported,ongoing,failed',
+          tests: [ok()],
+        }),
+        req({
+          name: 'Get bug by key',
+          method: 'GET',
+          path: '/bugs/{{bugKey}}',
+          tests: [ok()],
+          description:
+            'Id or key. Includes `allowedStatuses` for you, `timeInStatus` (ms per status) and `ageMs` (created until passed, or now).',
+        }),
+        req({
+          name: 'Update bug',
+          method: 'PATCH',
+          path: '/bugs/{{bugId}}',
+          body: { title: 'Login button does nothing on Safari 17' },
+          tests: [ok()],
+          description:
+            'Requires `bug:update`. Title, module, description, attachments. Status and assignee have their own endpoints.',
+        }),
+        req({
+          name: 'Module names (autocomplete)',
+          method: 'GET',
+          path: '/projects/{{bugProjectId}}/modules',
+          tests: [ok(), "pm.test('Has Login', () => pm.expect(pm.response.json().modules).to.include('Login'));"],
+        }),
+        ...[
+          ['Start work (→ ongoing)', 'ongoing', 0],
+          ['Resolve (→ resolved)', 'resolved', 0],
+          ['QA: fail it (→ failed, failCount 1)', 'failed', 1],
+          ['Back to work (→ ongoing)', 'ongoing', 1],
+          ['Resolve again (→ resolved)', 'resolved', 1],
+          ['QA: pass it (→ pass)', 'pass', 1],
+        ].map(([name, status, failCount]) =>
+          req({
+            name,
+            method: 'PATCH',
+            path: '/bugs/{{bugId}}/status',
+            body: { status, sendEmail: false },
+            tests: [
+              ok(),
+              `pm.test('failCount is ${failCount}', () => pm.expect(pm.response.json().failCount).to.eql(${failCount}));`,
+            ],
+            description:
+              'The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.',
+          }),
+        ),
+        req({
+          name: 'Unassign',
+          method: 'PATCH',
+          path: '/bugs/{{bugId}}/assign',
+          body: { assignee: null, sendEmail: false },
+          tests: [ok()],
+          description:
+            'Requires `bug:assign`. The assignee must be an active project member who can work on bugs; null unassigns.',
+        }),
+        req({
+          name: 'Activity (timeline)',
+          method: 'GET',
+          path: '/bugs/{{bugId}}/activity',
+          tests: [ok()],
+          description: 'Oldest first: created, assigned, every status change, edits.',
+        }),
+        req({
+          name: 'Delete bug',
+          method: 'DELETE',
+          path: '/bugs/{{bugId}}',
+          tests: [ok(204)],
+          description: 'Requires `bug:delete` (Admin). Soft delete: its number is never reused.',
+        }),
+        req({
+          name: 'Cleanup: delete the project',
+          method: 'DELETE',
+          path: '/projects/{{bugProjectId}}',
+          tests: [ok(204)],
         }),
       ],
     ),

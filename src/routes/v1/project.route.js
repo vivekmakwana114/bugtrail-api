@@ -35,7 +35,38 @@ router.delete(
   projectController.removeMember,
 );
 
+router.get(
+  '/:projectId/modules',
+  auth(),
+  authorize('project:read'),
+  validate(projectValidation.getModules),
+  projectController.getModules,
+);
+
 export default router;
+
+/**
+ * @swagger
+ * /projects/{projectId}/modules:
+ *   get:
+ *     summary: Module/screen names already used in the project's bugs (for autocomplete)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: path, name: projectId, required: true, schema: { type: string } }
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 modules: { type: array, items: { type: string }, example: [Checkout, Login, Profile] }
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ */
 
 /**
  * @swagger

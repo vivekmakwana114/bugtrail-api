@@ -1,11 +1,10 @@
-import mongoose from 'mongoose';
 import httpStatus from 'http-status';
-import { Project, User } from '../models/index.js';
+import { Bug, Project, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
 import { userStatuses } from '../config/userStatuses.js';
-import { bugStatusValues, bugStatuses, pieSlices } from '../config/bugStatuses.js';
+import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
 
 /*
@@ -74,10 +73,7 @@ const buildBugSummary = (counts = {}) => {
 
 /**
  * Per-status bug counts for a set of projects, in one aggregation (not one query per card).
- * Soft-deleted bugs don't count.
- *
- * Phase 3 note: the Bug model arrives in Phase 4, so this reads the `bugs` collection directly.
- * Phase 4 replaces `mongoose.connection.db.collection('bugs')` with `Bug` and nothing else changes.
+ * Soft-deleted bugs don't count. Uses the {project, status} index.
  *
  * @param {ObjectId[]} projectIds
  * @returns {Promise<Map<string, Object>>} project id → bug summary (projects without bugs are absent)
@@ -86,13 +82,10 @@ const getBugSummaries = async (projectIds) => {
   if (!projectIds.length) {
     return new Map();
   }
-  const rows = await mongoose.connection.db
-    .collection('bugs')
-    .aggregate([
-      { $match: { project: { $in: projectIds }, deletedAt: null } },
-      { $group: { _id: { project: '$project', status: '$status' }, count: { $sum: 1 } } },
-    ])
-    .toArray();
+  const rows = await Bug.aggregate([
+    { $match: { project: { $in: projectIds }, deletedAt: null } },
+    { $group: { _id: { project: '$project', status: '$status' }, count: { $sum: 1 } } },
+  ]);
 
   const countsByProject = new Map();
   rows.forEach(({ _id, count }) => {
@@ -261,7 +254,19 @@ const removeMember = async (actor, projectId, userId) => {
   if (project.manager?.equals(userId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'This user is the project manager. Change the manager first.');
   }
-  // TODO(Phase 4): decide what happens to bugs still assigned to the removed member.
+  // Block rather than silently unassign: open work shouldn't vanish from everyone's list.
+  const openAssigned = await Bug.countDocuments({
+    project: project._id,
+    assignee: userId,
+    status: { $in: openBugStatuses },
+    deletedAt: null,
+  });
+  if (openAssigned) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      `This member has ${openAssigned} open bug(s) assigned in this project. Reassign them first.`,
+    );
+  }
   await Project.updateOne({ _id: project._id }, { $pull: { members: userId } });
   return getMembers(project._id);
 };
@@ -276,6 +281,7 @@ const removeUserFromAllProjects = async (userId) => {
 };
 
 export default {
+  getProjectOrThrow,
   queryProjects,
   getProject,
   createProject,

@@ -130,6 +130,98 @@ components:
       properties:
         members: { type: array, items: { $ref: '#/components/schemas/UserSummary' } }
 
+    ProjectRef:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string, example: BT }
+        name: { type: string, example: BugTrail }
+
+    Attachment:
+      type: object
+      required: [title, url]
+      properties:
+        title: { type: string, example: Screen recording }
+        url: { type: string, format: uri, example: 'https://drive.google.com/file/d/abc/view', description: Google Drive / Docs links only }
+
+    BugListItem:
+      type: object
+      description: One row of the ticket grid.
+      properties:
+        id: { type: string }
+        key: { type: string, example: BT-42 }
+        project: { $ref: '#/components/schemas/ProjectRef' }
+        title: { type: string }
+        moduleName: { type: string, example: Login }
+        status: { type: string, enum: [reported, ongoing, resolved, pass, failed] }
+        assignee: { $ref: '#/components/schemas/UserRef' }
+        reporter: { $ref: '#/components/schemas/UserRef' }
+        failCount: { type: integer, example: 1 }
+        ageMs: { type: integer, description: Created until passed (or now), in ms }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BugDetail:
+      type: object
+      properties:
+        id: { type: string }
+        key: { type: string, example: BT-42 }
+        project: { $ref: '#/components/schemas/ProjectRef' }
+        title: { type: string }
+        moduleName: { type: string }
+        description: { type: string }
+        attachments: { type: array, items: { $ref: '#/components/schemas/Attachment' } }
+        status: { type: string, enum: [reported, ongoing, resolved, pass, failed] }
+        allowedStatuses:
+          type: array
+          items: { type: string }
+          description: Statuses YOU may move this bug to now. Show only these in the UI.
+          example: [ongoing]
+        assignee:
+          allOf: [{ $ref: '#/components/schemas/UserSummary' }]
+          nullable: true
+        reporter: { $ref: '#/components/schemas/UserSummary' }
+        failCount: { type: integer }
+        ageMs: { type: integer }
+        timeInStatus:
+          type: object
+          description: Milliseconds spent in each status (pass excluded; passing stops the clock)
+          properties:
+            reported: { type: integer }
+            ongoing: { type: integer }
+            resolved: { type: integer }
+            failed: { type: integer }
+        lastStatusChangedAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        passedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BugPage:
+      type: object
+      properties:
+        results: { type: array, items: { $ref: '#/components/schemas/BugListItem' } }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+        totalPages: { type: integer, example: 1 }
+        totalResults: { type: integer, example: 1 }
+
+    ActivityList:
+      type: object
+      properties:
+        activity:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              type: { type: string, enum: [created, updated, status_changed, assigned, deleted] }
+              actor: { $ref: '#/components/schemas/UserRef' }
+              from: { description: 'status_changed: a status. assigned: a UserRef or null.' }
+              to: { description: 'created / status_changed: a status. assigned: a UserRef or null.' }
+              fields: { type: array, items: { type: string }, description: 'updated: which fields changed' }
+              createdAt: { type: string, format: date-time }
+
     AccessCatalog:
       type: object
       description: Served from code. Roles are a fixed enum; permissions follow from the role.

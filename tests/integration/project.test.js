@@ -51,11 +51,17 @@ const asAdmin = as(adminAccessToken);
 const asPM = as(projectManagerAccessToken);
 const asDev = as(userOneAccessToken);
 
-// The Bug model arrives in Phase 4; until then the summary reads the raw `bugs` collection.
-// setupTestDB only clears collections that have a model, so this one is cleared here.
+// Minimal raw bug documents: the summary only reads project, status and deletedAt.
+// Each needs its own bugNumber because of the unique {project, bugNumber} index.
 const bugs = () => mongoose.connection.db.collection('bugs');
+let nextBugNumber = 0;
 const insertBugs = (projectId, statuses, extra = {}) =>
-  bugs().insertMany(statuses.map((status) => ({ project: projectId, status, deletedAt: null, ...extra })));
+  bugs().insertMany(
+    statuses.map((status) => {
+      nextBugNumber += 1;
+      return { project: projectId, bugNumber: nextBugNumber, status, deletedAt: null, ...extra };
+    }),
+  );
 
 const allUsers = [userOne, userTwo, admin, qaUser, projectManager, pendingUser, suspendedUser];
 
