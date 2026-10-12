@@ -1,7 +1,7 @@
 import httpStatus from 'http-status';
 import pick from '../utils/pick.js';
 import catchAsync from '../utils/catchAsync.js';
-import { projectService } from '../services/index.js';
+import { bugService, projectService } from '../services/index.js';
 import { projectSerializer } from '../serializers/index.js';
 
 const createProject = catchAsync(async (req, res) => {
@@ -41,6 +41,11 @@ const removeMember = catchAsync(async (req, res) => {
   res.send(projectSerializer.memberList(members));
 });
 
+const getModules = catchAsync(async (req, res) => {
+  const modules = await bugService.getModules(req.user, req.params.projectId);
+  res.send({ modules });
+});
+
 export default {
   createProject,
   getProjects,
@@ -49,4 +54,5 @@ export default {
   deleteProject,
   addMembers,
   removeMember,
+  getModules,
 };

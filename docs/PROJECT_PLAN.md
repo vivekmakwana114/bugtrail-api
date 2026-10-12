@@ -114,7 +114,7 @@ Keep the existing layers: `routes → validations (Joi) → controllers (catchAs
   - **System sets:**
     - `bugNumber`: an atomic `$inc` on the project's counter gives keys like `BT-42`.
     - `reporter`, `failCount`, `lastStatusChangedAt`, `resolvedAt`, `passedAt`, `deletedAt`.
-  - Indexes: `{project, status}`, `{assignee, status}`, and a text index on title, module and description.
+  - Indexes: `{project, status}`, `{assignee, status}`, and a text index on title, module and description. *(2026-10-12: built as `{project, bugNumber}` unique instead of the text index; search is a case-insensitive match on title and module, which also finds partial words, and runs inside the already-narrowed project set.)*
 - **BugActivity** (audit trail): `bug`, `project`, `actor`, `type` (created / status_changed / assigned / updated), `from`, `to`, timestamp. It powers the ticket timeline, the time-per-status numbers, and developer performance.
 - **BugMessage** (chat): `bug`, `sender`, `body`, `mentions[]`, `editedAt`, `deletedAt`. Index: `{bug, createdAt}`.
 - **Notification**: `recipient`, `actor`, `type`, `title`, `message`, `entity`, `readAt`. Expires after 90 days.
@@ -178,7 +178,7 @@ Reported → Ongoing → Resolved ──QA──► Pass
 | users | list, get, create, update, delete, `PATCH /:id/status` (approve/reject/suspend), `PATCH /me` |
 | roles | CRUD, `GET /roles/permissions` (catalog) |
 | projects | `GET /projects` (each project includes a status summary for its pie chart), get, create, update, delete, `POST/DELETE /:id/members`, `GET /:id/modules` (distinct module names, for autocomplete) |
-| bugs | `GET /bugs?projectId=` (filters: status, assignee, module, search; sort: age, failCount, updatedAt; paginated), get by id/key, create, update, delete (soft), `PATCH /:id/status` `{to, sendEmail}`, `PATCH /:id/assign` `{assignee, sendEmail}`, `GET /:id/activity` |
+| bugs | `GET /bugs?projectId=` (filters: status, assignee, module, search; sort: age, failCount, updatedAt; paginated), get by id/key, create, update, delete (soft), `PATCH /:id/status` `{status, sendEmail}` *(`status`, not `to`, to match `PATCH /users/:id/status`)*, `PATCH /:id/assign` `{assignee, sendEmail}`, `GET /:id/activity` |
 | messages | `GET/POST /bugs/:id/messages`, `PATCH/DELETE /messages/:id` |
 | notifications | list, unread-count, `PATCH /:id/read`, `PATCH /read-all` |
 | dashboard | `/summary`, `/bug-status`, `/developer-performance`, `/slowest-tickets` (filters: `projectId`, `from`, `to`; scoped to your projects) |

@@ -2,7 +2,7 @@ import Joi from 'joi';
 
 const objectId = (value, helpers) => {
   if (!value.match(/^[0-9a-fA-F]{24}$/)) {
-    return helpers.message('"{{#label}}" must be a valid mongo id');
+    return helpers.message('{{#label}} must be a valid mongo id');
   }
   return value;
 };
@@ -33,4 +33,24 @@ const sortBy = (fields) => {
   });
 };
 
-export { objectId, password, sortBy };
+const DRIVE_HOSTS = ['drive.google.com', 'docs.google.com'];
+
+/**
+ * Attachments are Google Drive / Docs links only: BugTrail stores links, never files.
+ * Parsed with URL (not a regex) so "https://drive.google.com.evil.com" or
+ * "https://evil.com/?drive.google.com" don't slip through.
+ */
+const driveUrl = (value, helpers) => {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return helpers.message('{{#label}} must be a valid URL');
+  }
+  if (url.protocol !== 'https:' || !DRIVE_HOSTS.includes(url.hostname)) {
+    return helpers.message('{{#label}} must be a Google Drive link (https://drive.google.com/... or docs.google.com)');
+  }
+  return value;
+};
+
+export { objectId, password, sortBy, driveUrl };

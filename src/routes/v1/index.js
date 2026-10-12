@@ -4,6 +4,7 @@ import healthRoute from './health.route.js';
 import userRoute from './user.route.js';
 import roleRoute from './role.route.js';
 import projectRoute from './project.route.js';
+import bugRoute from './bug.route.js';
 import docsRoute from './docs.route.js';
 import config from '../../config/config.js';
 
@@ -29,6 +30,10 @@ const defaultRoutes = [
   {
     path: '/projects',
     route: projectRoute,
+  },
+  {
+    path: '/bugs',
+    route: bugRoute,
   },
 ];
 

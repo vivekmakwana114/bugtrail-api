@@ -72,6 +72,10 @@ const removeMember = {
   }),
 };
 
+const getModules = {
+  params: Joi.object().keys({ projectId }),
+};
+
 export default {
   createProject,
   getProjects,
@@ -80,4 +84,5 @@ export default {
   deleteProject,
   addMembers,
   removeMember,
+  getModules,
 };

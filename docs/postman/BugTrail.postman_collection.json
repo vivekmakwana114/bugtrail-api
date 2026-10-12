@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "BugTrail APIs",
-    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
+    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -49,6 +49,22 @@
     },
     {
       "key": "projectKey",
+      "value": ""
+    },
+    {
+      "key": "bugProjectId",
+      "value": ""
+    },
+    {
+      "key": "bugProjectKey",
+      "value": ""
+    },
+    {
+      "key": "bugId",
+      "value": ""
+    },
+    {
+      "key": "bugKey",
       "value": ""
     }
   ],
@@ -1204,6 +1220,37 @@
           ]
         },
         {
+          "name": "Module names (autocomplete)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/modules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "modules"
+              ]
+            },
+            "description": "Distinct module/screen names used in the project's bugs, for the report form. Empty here: see Bugs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Remove member",
           "request": {
             "method": "DELETE",
@@ -1251,6 +1298,718 @@
               ]
             },
             "description": "Requires `project:delete` (Admin). Soft delete: hidden everywhere, history kept, key stays reserved."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bugs",
+      "description": "Tickets, the status workflow, assignment and the timeline. Self-contained: it creates its own project, walks one bug through the whole lifecycle (including a QA fail) and cleans up. As Admin every move is allowed; the bug's `allowedStatuses` shows what the current user may do. A developer (the assignee) may only do reported → ongoing → resolved and failed → ongoing.",
+      "item": [
+        {
+          "name": "Setup: create a project with a member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ]
+            },
+            "description": "The member is the developer approved in Users → Approve user; the bug gets assigned to them.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bug demo {{bugProjectKey}}\",\n  \"key\": \"{{bugProjectKey}}\",\n  \"members\": [\n    \"{{pendingUserId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
+                  "let key = 'P';",
+                  "for (let i = 0; i < 5; i += 1) { key += letters[Math.floor(Math.random() * letters.length)]; }",
+                  "pm.collectionVariables.set('bugProjectKey', key);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) { pm.collectionVariables.set('bugProjectId', pm.response.json().id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report bug",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs"
+              ]
+            },
+            "description": "Requires `bug:create`. Gets the next number (key like BT-42). Status defaults to reported. Attachments: Google Drive links only. `sendEmail` (the \"Send email\" checkbox) is accepted now; emails arrive in Phase 5.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project\": \"{{bugProjectId}}\",\n  \"title\": \"Login button does nothing on Safari\",\n  \"moduleName\": \"Login\",\n  \"description\": \"1. Open /login in Safari\\n2. Enter valid credentials\\n3. Click \\\"Sign in\\\": nothing happens\",\n  \"attachments\": [\n    {\n      \"title\": \"Screen recording\",\n      \"url\": \"https://drive.google.com/file/d/demo/view\"\n    }\n  ],\n  \"assignee\": \"{{pendingUserId}}\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) { pm.collectionVariables.set('bugId', pm.response.json().id); }",
+                  "if (pm.response.code < 300) { pm.collectionVariables.set('bugKey', pm.response.json().key); }",
+                  "pm.test('Key is <PROJECT>-1', () => pm.expect(pm.response.json().key).to.eql(pm.collectionVariables.get('bugProjectKey') + '-1'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List bugs (ticket grid)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bugs?projectId={{bugProjectId}}&sortBy=age:desc&limit=20&page=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs"
+              ],
+              "query": [
+                {
+                  "key": "projectId",
+                  "value": "{{bugProjectId}}"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "age:desc"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Requires `bug:read`. Filters: status (comma-separated), assignee (id | me | none), moduleName, search (title/module, or a key like BT-42). sortBy: age | failCount | updatedAt | createdAt | bugNumber. Without projectId: every project you can see."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My open bugs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bugs?assignee=me&status=reported,ongoing,failed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs"
+              ],
+              "query": [
+                {
+                  "key": "assignee",
+                  "value": "me"
+                },
+                {
+                  "key": "status",
+                  "value": "reported,ongoing,failed"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get bug by key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugKey}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugKey}}"
+              ]
+            },
+            "description": "Id or key. Includes `allowedStatuses` for you, `timeInStatus` (ms per status) and `ageMs` (created until passed, or now)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update bug",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}"
+              ]
+            },
+            "description": "Requires `bug:update`. Title, module, description, attachments. Status and assignee have their own endpoints.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login button does nothing on Safari 17\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Module names (autocomplete)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{bugProjectId}}/modules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{bugProjectId}}",
+                "modules"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has Login', () => pm.expect(pm.response.json().modules).to.include('Login'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start work (→ ongoing)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ongoing\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 0', () => pm.expect(pm.response.json().failCount).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve (→ resolved)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 0', () => pm.expect(pm.response.json().failCount).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QA: fail it (→ failed, failCount 1)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"failed\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 1', () => pm.expect(pm.response.json().failCount).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Back to work (→ ongoing)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ongoing\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 1', () => pm.expect(pm.response.json().failCount).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolve again (→ resolved)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 1', () => pm.expect(pm.response.json().failCount).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QA: pass it (→ pass)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "status"
+              ]
+            },
+            "description": "The move must be in your `allowedStatuses`: 403 otherwise, 409 if someone else changed the bug first. Every move to failed adds 1 to failCount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pass\",\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('failCount is 1', () => pm.expect(pm.response.json().failCount).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unassign",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "assign"
+              ]
+            },
+            "description": "Requires `bug:assign`. The assignee must be an active project member who can work on bugs; null unassigns.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignee\": null,\n  \"sendEmail\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Activity (timeline)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}",
+                "activity"
+              ]
+            },
+            "description": "Oldest first: created, assigned, every status change, edits."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete bug",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bugs/{{bugId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bugs",
+                "{{bugId}}"
+              ]
+            },
+            "description": "Requires `bug:delete` (Admin). Soft delete: its number is never reused."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cleanup: delete the project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{bugProjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{bugProjectId}}"
+              ]
+            },
+            "description": ""
           },
           "response": [],
           "event": [
