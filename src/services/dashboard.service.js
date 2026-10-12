@@ -5,7 +5,7 @@ import ApiError from '../utils/ApiError.js';
 import { getAccessibleProjectIds } from '../utils/scope.js';
 import bugService from './bug.service.js';
 import projectService from './project.service.js';
-import { bugStatuses, bugStatusValues, openBugStatuses } from '../config/bugStatuses.js';
+import { bugStatuses, bugStatusValues, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { projectStatuses } from '../config/projectStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
 
@@ -55,15 +55,22 @@ const countBugsByStatus = async (match) => {
  */
 const getSummary = async (actor, filter) => {
   const { projectIds, bugMatch } = await getScope(actor, filter);
-  const [projectRows, bugCounts] = await Promise.all([
+  // Aged = still open and reported before the cutoff (and, with a date filter, within the range too).
+  const agedMatch = {
+    ...bugMatch,
+    status: { $in: openBugStatuses },
+    createdAt: { ...bugMatch.createdAt, $lt: getAgedOpenCutoff() },
+  };
+  const [projectRows, bugCounts, agedOpen] = await Promise.all([
     Project.aggregate([{ $match: { _id: { $in: projectIds } } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
     countBugsByStatus(bugMatch),
+    Bug.countDocuments(agedMatch),
   ]);
   const projects = Object.fromEntries(Object.values(projectStatuses).map((status) => [status, 0]));
   projectRows.forEach(({ _id, count }) => {
     projects[_id] = count;
   });
-  return { projects, bugs: projectService.buildBugSummary(bugCounts) };
+  return { projects, bugs: projectService.buildBugSummary(bugCounts, agedOpen) };
 };
 
 /**

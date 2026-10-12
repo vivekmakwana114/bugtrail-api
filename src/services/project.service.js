@@ -4,7 +4,7 @@ import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
 import { userStatuses } from '../config/userStatuses.js';
-import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses } from '../config/bugStatuses.js';
+import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
 import notificationService from './notification.service.js';
 import { disconnectUser } from '../sockets/emitter.js';
@@ -79,21 +79,23 @@ const notifyAddedMembers = (actor, project, userIds) =>
 
 /**
  * @param {Object<string, number>} [counts] - status → count
- * @returns {{ total: number, open: number, byStatus: Object, pie: Object }}
+ * @param {number} [agedOpen] - open bugs reported more than AGED_OPEN_DAYS ago
+ * @returns {{ total: number, open: number, agedOpen: number, byStatus: Object, pie: Object }}
  *   open = everything not passed yet (the number in the middle of the card's ring)
+ *   agedOpen = the "open > 7d" half of the card's trouble line
  */
-const buildBugSummary = (counts = {}) => {
+const buildBugSummary = (counts = {}, agedOpen = 0) => {
   const byStatus = Object.fromEntries(bugStatusValues.map((status) => [status, counts[status] ?? 0]));
   const total = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
   const pie = Object.fromEntries(
     Object.entries(pieSlices).map(([slice, statuses]) => [slice, statuses.reduce((sum, s) => sum + byStatus[s], 0)]),
   );
-  return { total, open: total - byStatus[bugStatuses.PASS], byStatus, pie };
+  return { total, open: total - byStatus[bugStatuses.PASS], agedOpen, byStatus, pie };
 };
 
 /**
- * Per-status bug counts for a set of projects, in one aggregation (not one query per card).
- * Soft-deleted bugs don't count. Uses the {project, status} index.
+ * Per-status bug counts and aged-open counts for a set of projects, in one aggregation
+ * (not one query per card). Soft-deleted bugs don't count. Uses the {project, status} index.
  *
  * @param {ObjectId[]} projectIds
  * @returns {Promise<Map<string, Object>>} project id → bug summary (projects without bugs are absent)
@@ -102,20 +104,29 @@ const getBugSummaries = async (projectIds) => {
   if (!projectIds.length) {
     return new Map();
   }
+  const isAgedOpen = { $and: [{ $ne: ['$status', bugStatuses.PASS] }, { $lt: ['$createdAt', getAgedOpenCutoff()] }] };
   const rows = await Bug.aggregate([
     { $match: { project: { $in: projectIds }, deletedAt: null } },
-    { $group: { _id: { project: '$project', status: '$status' }, count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: { project: '$project', status: '$status' },
+        count: { $sum: 1 },
+        aged: { $sum: { $cond: [isAgedOpen, 1, 0] } },
+      },
+    },
   ]);
 
-  const countsByProject = new Map();
-  rows.forEach(({ _id, count }) => {
+  const byProject = new Map();
+  rows.forEach(({ _id, count, aged }) => {
     const id = _id.project.toString();
-    if (!countsByProject.has(id)) {
-      countsByProject.set(id, {});
+    if (!byProject.has(id)) {
+      byProject.set(id, { counts: {}, agedOpen: 0 });
     }
-    countsByProject.get(id)[_id.status] = count;
+    const entry = byProject.get(id);
+    entry.counts[_id.status] = count;
+    entry.agedOpen += aged;
   });
-  return new Map([...countsByProject].map(([id, counts]) => [id, buildBugSummary(counts)]));
+  return new Map([...byProject].map(([id, { counts, agedOpen }]) => [id, buildBugSummary(counts, agedOpen)]));
 };
 
 /**
