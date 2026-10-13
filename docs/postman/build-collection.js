@@ -228,6 +228,14 @@ const collection = {
         tests: [ok()],
       }),
       req({
+        name: 'List assignable users',
+        method: 'GET',
+        path: '/users/assignable',
+        tests: [ok()],
+        description:
+          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member.',
+      }),
+      req({
         name: 'Create user',
         method: 'POST',
         path: '/users',

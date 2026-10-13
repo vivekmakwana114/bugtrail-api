@@ -287,7 +287,7 @@ export default router;
  * @swagger
  * /bugs/{bugId}/assign:
  *   patch:
- *     summary: Assign or unassign a bug (requires bug:assign)
+ *     summary: Assign or unassign a bug (requires bug:assign). An assignee who isn't on the project is added as a member
  *     tags: [Bugs]
  *     security:
  *       - bearerAuth: []

@@ -6,8 +6,10 @@ import userController from '../../controllers/user.controller.js';
 
 const router = express.Router();
 
-// /me must be registered before /:userId, or Express would treat "me" as a userId.
+// /me and /assignable must be registered before /:userId, or Express would treat them as a userId.
 router.patch('/me', auth(), validate(userValidation.updateMe), userController.updateMe);
+// The assignee pickers and the bug list's assignee filter: anyone who can read bugs may ask.
+router.get('/assignable', auth(), authorize('bug:read'), userController.getAssignableUsers);
 
 router
   .route('/')
@@ -35,6 +37,32 @@ export default router;
  * tags:
  *   name: Users
  *   description: User management, approval queue and own profile
+ */
+
+/**
+ * @swagger
+ * /users/assignable:
+ *   get:
+ *     summary: Everyone a bug can be assigned to (active users whose role can work on bugs), by name
+ *     description: Assigning a bug to someone who isn't on the project adds them as a member.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/UserSummary' }
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
  */
 
 /**

@@ -278,6 +278,21 @@ const addMembers = async (actor, projectId, userIds) => {
 };
 
 /**
+ * Make sure someone is on the project, adding them (with the usual "you were added"
+ * notification) if they aren't. Used when a bug is assigned to a non-member; the caller has
+ * already checked they're an active user who can work on bugs.
+ * @param {User} actor
+ * @param {Project} project - updated in memory too, so later checks in the same request see it
+ * @param {ObjectId} userId
+ */
+const ensureMember = async (actor, project, userId) => {
+  if (project.hasMember(userId)) return;
+  await Project.updateOne({ _id: project._id }, { $addToSet: { members: userId } });
+  project.members.push(userId);
+  await notifyAddedMembers(actor, project, [userId]);
+};
+
+/**
  * @param {User} actor
  * @param {ObjectId} projectId
  * @param {ObjectId} userId
@@ -327,6 +342,7 @@ export default {
   updateProject,
   deleteProject,
   addMembers,
+  ensureMember,
   removeMember,
   removeUserFromAllProjects,
   getBugSummaries,

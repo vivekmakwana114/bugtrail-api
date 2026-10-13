@@ -3,7 +3,7 @@ import { Bug, Token, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.js';
-import { roles } from '../config/roles.js';
+import { roles, getRolesWithPermission } from '../config/roles.js';
 import { tokenTypes } from '../config/tokens.js';
 import projectService from './project.service.js';
 import emailService from './email.service.js';
@@ -105,6 +105,15 @@ const queryUsers = async ({ search, ...filter }, options) => {
   }
   return User.paginate(filter, options);
 };
+
+/**
+ * Everyone a bug can be assigned to: active users whose role can work on bugs (bug:progress).
+ * Feeds the assignee pickers and the bug list's assignee filter. Asked by permission, not by
+ * role name, so a new role (or a changed matrix) is picked up automatically.
+ * @returns {Promise<User[]>} sorted by name
+ */
+const getAssignableUsers = async () =>
+  User.find({ status: userStatuses.ACTIVE, role: { $in: getRolesWithPermission('bug:progress') } }).sort({ name: 1 });
 
 /**
  * @param {ObjectId} id
@@ -283,6 +292,7 @@ const updateMe = async (user, updateBody) => {
 export default {
   createUser,
   queryUsers,
+  getAssignableUsers,
   getUserById,
   getUserByEmail,
   updateUserById,
