@@ -544,7 +544,7 @@
                 "roles"
               ]
             },
-            "description": "The four roles with what each can do, plus the grouped permission labels. Any signed-in user."
+            "description": "Every role (admin, project_manager, developer, ui_ux, qa) with what each can do, plus the grouped permission labels. Any signed-in user."
           },
           "response": [],
           "event": [
@@ -597,7 +597,7 @@
                 }
               ]
             },
-            "description": "Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | qa), status. Each row is the summary plus createdAt and lastLoginAt."
+            "description": "Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | ui_ux | qa), status. Each row is the summary plus createdAt and lastLoginAt."
           },
           "response": [],
           "event": [
@@ -699,7 +699,7 @@
             "description": "Requires `user:create`. Created active. Permissions follow from the role.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dana Developer\",\n  \"email\": \"dana.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"role\": \"developer\"\n}",
+              "raw": "{\n  \"name\": \"Dana Developer\",\n  \"email\": \"dana.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"role\": \"developer\",\n  \"designation\": \"MERN Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -864,7 +864,7 @@
             "description": "Requires `user:approve`. pending/rejected → active needs a role. Run Auth → Register first to fill `pendingUserId`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"developer\"\n}",
+              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"developer\",\n  \"designation\": \"Flutter Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

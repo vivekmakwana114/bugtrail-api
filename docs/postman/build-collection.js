@@ -207,7 +207,8 @@ const collection = {
           method: 'GET',
           path: '/roles',
           tests: [ok()],
-          description: 'The four roles with what each can do, plus the grouped permission labels. Any signed-in user.',
+          description:
+            'Every role (admin, project_manager, developer, ui_ux, qa) with what each can do, plus the grouped permission labels. Any signed-in user.',
         }),
       ],
     ),
@@ -219,7 +220,7 @@ const collection = {
         path: '/users?search=a&sortBy=name:asc&limit=10&page=1',
         tests: [ok()],
         description:
-          'Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | qa), status. Each row is the summary plus createdAt and lastLoginAt.',
+          'Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | ui_ux | qa), status. Each row is the summary plus createdAt and lastLoginAt.',
       }),
       req({
         name: 'List pending users (approval queue)',
@@ -239,7 +240,13 @@ const collection = {
         name: 'Create user',
         method: 'POST',
         path: '/users',
-        body: { name: 'Dana Developer', email: 'dana.{{$timestamp}}@example.com', password: 'password1', role: 'developer' },
+        body: {
+          name: 'Dana Developer',
+          email: 'dana.{{$timestamp}}@example.com',
+          password: 'password1',
+          role: 'developer',
+          designation: 'MERN Developer',
+        },
         tests: [ok(201), saveVar('userId', 'pm.response.json().id')],
         description: 'Requires `user:create`. Created active. Permissions follow from the role.',
       }),
@@ -265,7 +272,7 @@ const collection = {
         name: 'Approve user',
         method: 'PATCH',
         path: '/users/{{pendingUserId}}/status',
-        body: { status: 'active', role: 'developer' },
+        body: { status: 'active', role: 'developer', designation: 'Flutter Developer' },
         tests: [ok()],
         description:
           'Requires `user:approve`. pending/rejected → active needs a role. Run Auth → Register first to fill `pendingUserId`.',

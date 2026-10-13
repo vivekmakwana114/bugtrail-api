@@ -51,7 +51,7 @@ There are two repos:
 > - What each role can do is defined in code (`src/config/roles.js`), using the matrix below. Permissions are never stored or edited per user; changing a role's permissions is a code change.
 > - `npm run seed` creates only the Admin (it asks for email and password).
 > - Every endpoint returns a server-chosen shape through serializers (`src/serializers/`), never whole documents.
-> - The `role:*` permissions were dropped. `GET /roles` is a read-only catalog of the four roles and their permissions.
+> - The `role:*` permissions were dropped. `GET /roles` is a read-only catalog of the roles and their permissions. _(2026-10-13: a fifth role, `ui_ux`, with the Developer's permissions; users also get a free-text `designation`, e.g. "MERN Developer", set by an Admin.)_
 > - The escalation guards still apply: only an Admin assigns Admin, you can't assign a role or manage a user with permissions you don't hold, you can't change your own role, and the last active Admin is protected.
 > - See `docs/learning/02-auth-and-rbac.md` §3 for the trade-off.
 

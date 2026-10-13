@@ -103,7 +103,15 @@ describe('Project routes', () => {
       expect(res.body.members.map((m) => m.id).sort()).toEqual(
         [projectManager._id.toString(), userOne._id.toString()].sort(),
       );
-      expect(Object.keys(res.body.members[0]).sort()).toEqual(['avatarUrl', 'email', 'id', 'name', 'role', 'status']);
+      expect(Object.keys(res.body.members[0]).sort()).toEqual([
+        'avatarUrl',
+        'designation',
+        'email',
+        'id',
+        'name',
+        'role',
+        'status',
+      ]);
     });
 
     test('should return 400 if the key is already used, even by a deleted project', async () => {

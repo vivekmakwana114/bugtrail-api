@@ -9,8 +9,12 @@ const roles = Object.freeze({
   ADMIN: 'admin',
   PROJECT_MANAGER: 'project_manager',
   DEVELOPER: 'developer',
+  UI_UX: 'ui_ux',
   QA: 'qa',
 });
+
+/** Fixing bugs: shared by Developer and UI/UX (designers fix UI bugs the same way). */
+const BUG_FIXER_PERMISSIONS = ['dashboard:view', 'project:read', 'bug:read', 'bug:progress', 'chat:read', 'chat:send'];
 
 /**
  * What each role can do. Changing a role's permissions is a code change (reviewed in a PR,
@@ -45,7 +49,13 @@ const roleDefinitions = Object.freeze({
   [roles.DEVELOPER]: {
     label: 'Developer',
     description: 'Works on assigned bugs: Reported → Ongoing → Resolved.',
-    permissions: ['dashboard:view', 'project:read', 'bug:read', 'bug:progress', 'chat:read', 'chat:send'],
+    permissions: BUG_FIXER_PERMISSIONS,
+  },
+  // Added 2026-10-13: same permissions as Developer, for designers fixing UI/UX bugs.
+  [roles.UI_UX]: {
+    label: 'UI/UX',
+    description: 'Works on assigned design and UI bugs: Reported → Ongoing → Resolved.',
+    permissions: BUG_FIXER_PERMISSIONS,
   },
   [roles.QA]: {
     label: 'QA',
