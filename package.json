@@ -27,7 +27,8 @@
     "lint:fix": "eslint . --fix",
     "prettier": "prettier --check \"**/*.js\"",
     "prettier:fix": "prettier --write \"**/*.js\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "email:preview": "cross-env NODE_ENV=development node src/scripts/email-preview.js"
   },
   "keywords": [
     "bugtrail",

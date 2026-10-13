@@ -2,6 +2,8 @@ import nodemailer from 'nodemailer';
 import config from '../config/config.js';
 import logger from '../config/logger.js';
 import { EmailOutbox } from '../models/index.js';
+import { roleDefinitions } from '../config/roles.js';
+import { accountActiveEmail, accountRejectedEmail, resetPasswordEmail } from '../emails/templates.js';
 
 /*
  * Two steps, on purpose:
@@ -23,10 +25,11 @@ if (config.env !== 'test' && config.email.enabled) {
  * Send an email now (the outbox worker's job; request handlers use queueEmail).
  * @param {string} to
  * @param {string} subject
- * @param {string} text
+ * @param {string} text - the plain-text part (always sent, and what the dev console shows)
+ * @param {string} [html] - the designed part (src/emails), shown by clients that render HTML
  * @returns {Promise}
  */
-const sendEmail = async (to, subject, text) => {
+const sendEmail = async (to, subject, text, html) => {
   // No SMTP_HOST (the default locally) means log instead of send, so you can run without SMTP.
   // The body is only logged in development, because it can contain reset links.
   if (!config.email.enabled) {
@@ -36,7 +39,7 @@ const sendEmail = async (to, subject, text) => {
     }
     return;
   }
-  const msg = { from: config.email.from, to, subject, text };
+  const msg = { from: config.email.from, to, subject, text, ...(html && { html }) };
   await transport.sendMail(msg);
 };
 
@@ -45,9 +48,17 @@ const sendEmail = async (to, subject, text) => {
  * @param {string} to
  * @param {string} subject
  * @param {string} text
+ * @param {string} [html]
  * @returns {Promise<EmailOutbox>}
  */
-const queueEmail = async (to, subject, text) => EmailOutbox.create({ to, subject, text });
+const queueEmail = async (to, subject, text, html) => EmailOutbox.create({ to, subject, text, html });
+
+/**
+ * Queue a rendered template (src/emails).
+ * @param {string} to
+ * @param {{ subject: string, text: string, html: string }} email
+ */
+const queueTemplate = (to, { subject, text, html }) => queueEmail(to, subject, text, html);
 
 /**
  * @param {string} path - web app path, e.g. /login
@@ -60,40 +71,31 @@ const appLink = (path) => `${config.clientUrl}${path}`;
  * @param {string} token
  */
 const sendResetPasswordEmail = async (to, token) => {
-  const subject = 'Reset your BugTrail password';
-  const resetPasswordUrl = appLink(`/reset-password?token=${encodeURIComponent(token)}`);
-  const text = `Hi,
-
-To reset your password, open this link: ${resetPasswordUrl}
-It expires soon. If you didn't ask to reset your password, ignore this email.`;
-  await queueEmail(to, subject, text);
+  const url = appLink(`/reset-password?token=${encodeURIComponent(token)}`);
+  await queueTemplate(to, resetPasswordEmail({ url }));
 };
 
 /**
  * Account approved (or reactivated).
- * @param {{ email: string, name: string }} user
+ * @param {{ email: string, name: string, role?: string|null }} user
  */
-const sendAccountActiveEmail = async ({ email, name }) => {
-  const text = `Hi ${name},
-
-Your BugTrail account is active. Sign in here: ${appLink('/login')}`;
-  await queueEmail(email, 'Your BugTrail account is active', text);
+const sendAccountActiveEmail = async ({ email, name, role }) => {
+  const roleLabel = role ? roleDefinitions[role]?.label : undefined;
+  await queueTemplate(email, accountActiveEmail({ name, url: appLink('/login'), role: roleLabel }));
 };
 
 /**
  * @param {{ email: string, name: string }} user
  */
 const sendAccountRejectedEmail = async ({ email, name }) => {
-  const text = `Hi ${name},
-
-Your request for a BugTrail account wasn't approved. If you think this is a mistake, contact your BugTrail admin.`;
-  await queueEmail(email, 'Your BugTrail account request', text);
+  await queueTemplate(email, accountRejectedEmail({ name }));
 };
 
 export default {
   transport,
   sendEmail,
   queueEmail,
+  queueTemplate,
   appLink,
   sendResetPasswordEmail,
   sendAccountActiveEmail,

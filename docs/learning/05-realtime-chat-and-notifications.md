@@ -60,6 +60,14 @@ By the time we notify, the bug change is saved. If `notify()` threw, the client 
 ### 6. One process, on purpose
 Rooms live in the API process's memory, and the worker runs inside it. Two instances would split rooms (a message posted on instance A never reaches a socket on B) and run two workers (safe thanks to the atomic claim, but pointless). That's why PM2 runs `instances: 1` (see `docs/DEPLOYMENT.md`). Scaling out later means adding the Socket.IO Redis adapter. That's a deliberate trade, not an accident.
 
+### 7. Designed emails, and why they look old-fashioned inside (2026-10-13)
+Every email now has an HTML design (`src/emails/`): one layout and one template per kind (password reset, account approved/rejected, assigned, status changed, mentioned, new message, added to a project). Each has its own label, accent colour (the status colours, so a "failed" email has a red bar) and one button. Inside, it's a centred `<table>` with inline styles: Gmail and Outlook drop `<style>` blocks, flexbox, CSS variables and SVG, so the techniques the web app uses don't survive an inbox. Three rules:
+- **Always send a plain-text part too** (built from the same content): some clients and filters prefer it, and it's what the dev console prints when there's no SMTP.
+- **Escape everything a user typed** (names, bug titles, messages): an email must never render markup someone put in a bug title.
+- **Store the rendered HTML in the outbox row**, next to the text: the worker sends exactly what was decided at the time, even if a template changes before it goes out.
+
+`npm run email:preview` writes every template with sample data to `.email-previews/` so you can look at them in a browser without sending anything.
+
 ## Try it yourself
 1. Log in as Admin in Postman, then in a terminal run `npm run realtime:listen -- <accessToken>`. Run **Auth → Register** in Postman and watch `notification:new` arrive.
 2. Create a bug, then run `npm run realtime:listen -- <token> <bugKey>` and send chat messages from Postman. You'll see `message:new`, `message:updated`, `message:deleted`.

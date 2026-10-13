@@ -49,7 +49,7 @@ const claimNext = async () => {
  */
 const deliver = async (email) => {
   try {
-    await emailService.sendEmail(email.to, email.subject, email.text);
+    await emailService.sendEmail(email.to, email.subject, email.text, email.html ?? undefined);
     await EmailOutbox.updateOne(
       { _id: email._id },
       { $set: { status: emailOutboxStatuses.SENT, sentAt: new Date(), lockedAt: null, lastError: null } },
