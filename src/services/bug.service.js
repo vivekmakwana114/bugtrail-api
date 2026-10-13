@@ -146,7 +146,7 @@ const bugRefs = (bug, project) => {
   const key = `${project.key}-${bug.bugNumber}`;
   return {
     key,
-    link: `/projects/${project.id}/bugs/${key}`,
+    link: `/projects/${project.key}/bugs/${key}`, // keys, not ids: ids stay out of URLs
     entity: { kind: 'bug', id: bug.id, projectId: project.id, key },
   };
 };

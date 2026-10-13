@@ -54,7 +54,7 @@ export default router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - { in: path, name: projectId, required: true, schema: { type: string } }
+ *       - { in: path, name: projectId, required: true, schema: { type: string }, description: The project id or its key (e.g. BT) }
  *     responses:
  *       "200":
  *         description: OK
@@ -142,7 +142,7 @@ export default router;
  * @swagger
  * /projects/{projectId}:
  *   parameters:
- *     - { in: path, name: projectId, required: true, schema: { type: string } }
+ *     - { in: path, name: projectId, required: true, schema: { type: string }, description: The project id or its key (e.g. BT) }
  *   get:
  *     summary: Get a project with its members (requires project:read)
  *     description: A project outside your scope is a 404, not a 403, so ids can't be probed.
@@ -211,7 +211,7 @@ export default router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - { in: path, name: projectId, required: true, schema: { type: string } }
+ *       - { in: path, name: projectId, required: true, schema: { type: string }, description: The project id or its key (e.g. BT) }
  *     requestBody:
  *       required: true
  *       content:
@@ -245,7 +245,7 @@ export default router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - { in: path, name: projectId, required: true, schema: { type: string } }
+ *       - { in: path, name: projectId, required: true, schema: { type: string }, description: The project id or its key (e.g. BT) }
  *       - { in: path, name: userId, required: true, schema: { type: string } }
  *     responses:
  *       "200":

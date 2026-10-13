@@ -1,7 +1,4 @@
-import mongoose from 'mongoose';
-import httpStatus from 'http-status';
 import { Bug, Project, User } from '../models/index.js';
-import ApiError from '../utils/ApiError.js';
 import { getAccessibleProjectIds } from '../utils/scope.js';
 import bugService from './bug.service.js';
 import projectService from './project.service.js';
@@ -23,12 +20,13 @@ import { userSummaryFields } from '../serializers/user.serializer.js';
  * @returns {Promise<{ projectIds: ObjectId[], bugMatch: Object }>}
  */
 const getScope = async (actor, { projectId, from, to }) => {
-  let projectIds = await getAccessibleProjectIds(actor);
+  let projectIds;
   if (projectId) {
-    if (!projectIds.some((id) => id.equals(projectId))) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Project not found');
-    }
-    projectIds = [new mongoose.Types.ObjectId(projectId)];
+    // By id or key (?project=BT), with the same visibility rules as everywhere: 404 if not yours.
+    const project = await projectService.getProjectOrThrow(actor, projectId);
+    projectIds = [project._id];
+  } else {
+    projectIds = await getAccessibleProjectIds(actor);
   }
   const bugMatch = {
     project: { $in: projectIds },

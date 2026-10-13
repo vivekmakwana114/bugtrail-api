@@ -3,6 +3,7 @@ import { Bug, Project, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
+import { projectRefFilter } from '../utils/projectRef.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
@@ -24,7 +25,8 @@ import { notificationTypes } from '../config/notificationTypes.js';
  * @returns {Promise<Project>}
  */
 const getProjectOrThrow = async (actor, projectId) => {
-  const project = await Project.findOne({ _id: projectId, ...projectScopeFilter(actor) });
+  // By id or key (BT); either way limited to what this user may see.
+  const project = await Project.findOne({ ...projectRefFilter(projectId), ...projectScopeFilter(actor) });
   if (!project) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Project not found');
   }
@@ -74,7 +76,7 @@ const notifyAddedMembers = (actor, project, userIds) =>
     title: `You were added to ${project.name}`,
     message: `${actor.name} added you to ${project.name} (${project.key}).`,
     entity: { kind: 'project', id: project.id, key: project.key },
-    link: `/projects/${project.id}`,
+    link: `/projects/${project.key}`, // the key, not the id: ids stay out of URLs
   });
 
 /**

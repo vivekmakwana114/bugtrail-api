@@ -107,7 +107,7 @@ const sendMessage = async (actor, bugId, { body, mentions = [] }) => {
   const common = {
     actor,
     entity: { kind: 'bug', id: bug.id, projectId: project.id, key },
-    link: `/projects/${project.id}/bugs/${key}`,
+    link: `/projects/${project.key}/bugs/${key}`,
     skipUserIds: viewing,
   };
   const preview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
