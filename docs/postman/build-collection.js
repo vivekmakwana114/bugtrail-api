@@ -77,7 +77,7 @@ const collection = {
       '3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.',
       'Or just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.',
       '',
-      'Roles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code',
+      'Roles are fixed values: admin, project_manager, developer, ui_ux, qa. What each role can do is defined in code',
       '(see **Roles → Access catalog**); permissions are never sent in requests.',
       '',
       'Every request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says "No auth".',
@@ -352,7 +352,7 @@ const collection = {
           body: { description: 'Updated from Postman', status: 'active' },
           tests: [ok()],
           description:
-            "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+            "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager (PM or Admin) who isn't a member yet is added. status archived makes the project read-only.",
         }),
         req({
           name: 'Add members',

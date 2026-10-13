@@ -159,7 +159,7 @@ export default router;
  *         $ref: '#/components/responses/NotFound'
  *   patch:
  *     summary: Update a project (requires project:update, within your scope)
- *     description: Name, description, status, manager. The key can't change; members have their own endpoints. A new manager must already be a member.
+ *     description: Name, description, status, manager. The key can't change; members have their own endpoints. A new manager (a PM or Admin) who isn't a member yet is added to the members. Setting status to archived makes the project read-only.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -182,7 +182,7 @@ export default router;
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ProjectDetail' }
  *       "400":
- *         description: Invalid body, or the manager isn't an eligible member
+ *         description: Invalid body, or the manager can't manage members (not a PM or Admin)
  *       "403":
  *         $ref: '#/components/responses/Forbidden'
  *       "404":

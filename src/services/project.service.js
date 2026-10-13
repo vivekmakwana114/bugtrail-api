@@ -220,6 +220,8 @@ const createProject = async (actor, { members = [], manager = null, ...fields })
 
 /**
  * Name, description, status and manager. The key never changes; members have their own endpoints.
+ * A manager who isn't on the project yet is added as a member (changed 2026-10-13, like
+ * assigning a bug), since running a project means seeing it.
  * @param {User} actor
  * @param {ObjectId} projectId
  * @param {Object} body
@@ -230,11 +232,10 @@ const updateProject = async (actor, projectId, { manager, ...fields }) => {
 
   if (manager !== undefined) {
     if (manager !== null) {
-      if (!project.hasMember(manager)) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'The manager must be a member of the project. Add them first.');
-      }
       const [user] = await getAssignableUsersOrThrow([manager]);
       assertCanBeManager(user);
+      // eslint-disable-next-line no-use-before-define -- defined below with the member helpers
+      await ensureMember(actor, project, user._id);
     }
     project.manager = manager;
   }

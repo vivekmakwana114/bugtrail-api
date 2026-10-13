@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "BugTrail APIs",
-    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
+    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, ui_ux, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -1204,7 +1204,7 @@
                 "{{projectId}}"
               ]
             },
-            "description": "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+            "description": "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager (PM or Admin) who isn't a member yet is added. status archived makes the project read-only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Updated from Postman\",\n  \"status\": \"active\"\n}",

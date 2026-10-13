@@ -301,13 +301,17 @@ describe('Project routes', () => {
         .expect(httpStatus.BAD_REQUEST);
     });
 
-    test('should only accept a manager who is already an eligible member, and allow clearing it', async () => {
+    test('should add an eligible manager who is not a member yet, refuse an ineligible one, and allow clearing it', async () => {
       const otherPM = makeUser({ role: 'project_manager' });
       await insertUsers([otherPM]);
 
-      await asAdmin(request(app).patch(`/v1/projects/${projectOne._id}`))
+      // A PM who isn't on the project becomes its manager and a member (changed 2026-10-13).
+      const added = await asAdmin(request(app).patch(`/v1/projects/${projectOne._id}`))
         .send({ manager: otherPM._id.toString() })
-        .expect(httpStatus.BAD_REQUEST);
+        .expect(httpStatus.OK);
+      expect(added.body.manager.id).toBe(otherPM._id.toString());
+      expect(added.body.members.map((member) => member.id)).toContain(otherPM._id.toString());
+      // A developer can't manage members, so they can't be the manager.
       await asAdmin(request(app).patch(`/v1/projects/${projectOne._id}`))
         .send({ manager: userOne._id.toString() })
         .expect(httpStatus.BAD_REQUEST);
