@@ -63,6 +63,6 @@ Rooms live in the API process's memory, and the worker runs inside it. Two insta
 ## Try it yourself
 1. Log in as Admin in Postman, then in a terminal run `npm run realtime:listen -- <accessToken>`. Run **Auth → Register** in Postman and watch `notification:new` arrive.
 2. Create a bug, then run `npm run realtime:listen -- <token> <bugKey>` and send chat messages from Postman. You'll see `message:new`, `message:updated`, `message:deleted`.
-3. With `EMAIL_ENABLED=false`, report a bug with `"sendEmail": true` and watch the API console: within ~15s the worker prints the email. Look at the `emailoutboxes` collection in Compass and follow the row from `pending` to `sent`.
-4. **Exercise:** set `SMTP_HOST` to a host that doesn't exist and `EMAIL_ENABLED=true`, then send yourself a reset link. Watch `attempts`, `nextAttemptAt` and `lastError` change, until `failed`.
+3. With `SMTP_HOST` empty, report a bug with `"sendEmail": true` and watch the API console: within ~15s the worker prints the email. Look at the `emailoutboxes` collection in Compass and follow the row from `pending` to `sent`.
+4. **Exercise:** set `SMTP_HOST` to a host that doesn't exist (that alone turns sending on), then send yourself a reset link. Watch `attempts`, `nextAttemptAt` and `lastError` change, until `failed`.
 5. **Exercise:** in `claimNext`, replace `findOneAndUpdate` with `findOne` followed by `updateOne`. Start two API processes against the same DB (two ports, one of them with its socket layer unused) and queue 20 emails. Count the sends. Why does the atomic version never double-send?

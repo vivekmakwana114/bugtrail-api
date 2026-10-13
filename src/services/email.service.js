@@ -16,7 +16,7 @@ if (config.env !== 'test' && config.email.enabled) {
   transport
     .verify()
     .then(() => logger.info('Connected to email server'))
-    .catch(() => logger.warn('Unable to connect to email server. Make sure you have configured the SMTP options in .env'));
+    .catch(() => logger.warn('Unable to connect to the email server. Check the SMTP_* variables.'));
 }
 
 /**
@@ -27,10 +27,10 @@ if (config.env !== 'test' && config.email.enabled) {
  * @returns {Promise}
  */
 const sendEmail = async (to, subject, text) => {
-  // EMAIL_ENABLED=false (the default) lets you run locally without SMTP.
-  // The body is only logged outside production, because it can contain reset links.
+  // No SMTP_HOST (the default locally) means log instead of send, so you can run without SMTP.
+  // The body is only logged in development, because it can contain reset links.
   if (!config.email.enabled) {
-    logger.info(`Email disabled, not sent: "${subject}" to ${to}`);
+    logger.info(`No SMTP_HOST, email not sent: "${subject}" to ${to}`);
     if (config.env === 'development') {
       logger.info(text);
     }

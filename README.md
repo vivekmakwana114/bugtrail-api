@@ -46,7 +46,8 @@ npm run seed
 It asks for the Admin's **email**, then a **password** (masked, typed twice). It creates only the Admin; everyone else registers and the Admin approves them with a role. If an active Admin already exists, it does nothing.
 
 - Run it from **PowerShell or Command Prompt**. Git Bash's default terminal can't hide input, so there use `winpty npm run seed`.
-- With no terminal at all (Railway, CI), it reads `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` instead.
+- It always asks; credentials are never read from env vars. For Railway, run `railway run npm run seed` from your machine (see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)).
+- If Atlas (`mongodb+srv://`) fails locally with `querySrv ECONNREFUSED`, set `DNS_SERVERS=8.8.8.8` in your `.env`.
 
 ### 4. Run
 ```bash
@@ -55,7 +56,9 @@ npm run dev       # nodemon, http://localhost:5000/v1
 - API docs (development only): http://localhost:5000/v1/docs
 - Health check: http://localhost:5000/v1/health
 
-Emails are logged to the console while `EMAIL_ENABLED=false` (the default), so password-reset links are visible in local dev without SMTP.
+While `SMTP_HOST` is empty (the default), emails are logged to the console instead of sent, so password-reset links are visible in local dev without SMTP.
+
+`.env` is laid out in three sections: **Development** (active), then **Staging** (Railway) and **Production** (VPS), commented out as a reference for those servers. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Authentication in one paragraph
 Login returns a short-lived **access token** in the body (the web app keeps it in memory) and sets the **refresh token** as an `httpOnly` cookie scoped to `/v1/auth`. The web app calls `POST /v1/auth/refresh-tokens` (cookie only, no body) to get a new access token, and each refresh rotates the cookie. Self-registered accounts start `pending` and can't log in until an Admin approves them with a role (`admin`, `project_manager`, `developer` or `qa`). What each role can do is defined in code (`src/config/roles.js`); the user is re-read on every request, so role changes and suspensions apply immediately. See [`docs/learning/02-auth-and-rbac.md`](docs/learning/02-auth-and-rbac.md).
@@ -64,7 +67,7 @@ Login returns a short-lived **access token** in the body (the web app keeps it i
 - **Postman:** import [`docs/postman/BugTrail.postman_collection.json`](docs/postman/README.md), one folder per module (Health, Auth, Roles, Users, Projects, Bugs, Chat, Notifications, Dashboard).
 - **Swagger:** http://localhost:5000/v1/docs (development only).
 - **Live events (Socket.IO):** `npm run realtime:listen -- <accessToken> [bugIdOrKey]` prints every event that user receives (notifications, and chat/status for the bug). Copy the token from Postman's `accessToken` variable.
-- **Emails** go through a MongoDB outbox (`emailoutboxes`) and a worker inside the API process. With `EMAIL_ENABLED=false` they're printed in the API console instead of sent.
+- **Emails** go through a MongoDB outbox (`emailoutboxes`) and a worker inside the API process. With no `SMTP_HOST` they're printed in the API console instead of sent.
 
 ## Scripts
 

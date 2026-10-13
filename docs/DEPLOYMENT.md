@@ -10,7 +10,7 @@ Both setups run the same three pieces:
                                                                        MongoDB
 ```
 
-> Status: this is the **target** setup. Items marked *(Phase N)* don't exist in the code yet.
+Plan (2026-10-13): **Railway first, for testing** (default `*.up.railway.app` URLs are fine), then **our own VPS** for production.
 
 ## Environments
 
@@ -24,23 +24,23 @@ Staging and production must **never share a database** or `JWT_SECRET`. On Railw
 ## Rules that apply to both setups
 
 1. **Run exactly one API instance.** Socket.IO rooms and the email outbox worker live in memory inside one process. Two instances would split chat rooms and could double-send emails. Scaling out later needs a Socket.IO adapter and a worker lock.
-2. **Use a custom domain with two subdomains**, e.g. `app.bugtrail.example.com` and `api.bugtrail.example.com`.
-   - The refresh token lives in an httpOnly cookie *(Phase 1)*. Because both subdomains share one site, the cookie can use `SameSite=Lax`.
-   - The default `*.up.railway.app` URLs are treated as **different sites** by browsers (the domain is on the Public Suffix List). They would force `SameSite=None` plus CSRF protection, so avoid them for production.
-3. **Secrets only in environment variables**, never committed. `.env.example` lists every variable.
+2. **The refresh cookie needs no configuration.** With `NODE_ENV=production` it is `Secure` + `SameSite=None`, so it works both on two default `*.up.railway.app` URLs (different sites to a browser, because that domain is on the Public Suffix List) and on `app.<domain>` + `api.<domain>`. Because `None` lets other sites' requests carry the cookie, the refresh and logout routes reject any `Origin` that isn't `CLIENT_URL`. So **`CLIENT_URL` must be the web app's exact origin** (`https://…`, no trailing path), or sign-in won't survive a page reload.
+3. **Secrets only in environment variables**, never committed. `.env.example` (in both repos) lists every variable in three sections, **Development**, **Staging (Railway)** and **Production (VPS)**: copy the section you need, without the `# `.
 4. **HTTPS everywhere.** Secure cookies require it.
+5. **Email is sent only when `SMTP_HOST` is set.** Without it the API logs each email instead, which is fine for a first Railway test.
 
 ## Option A: Railway
 
 | Service | Setup |
 |---|---|
-| `bugtrail-api` | Deploy from GitHub. Railway detects Node with Nixpacks. Start command `npm start` (PM2 in the foreground). **Replicas: 1.** Set variables from `.env.example`, with `NODE_ENV=production`. |
-| `bugtrail-web` | Deploy from GitHub. Build `npm run build`, start `npm start`. Set `NEXT_PUBLIC_API_URL=https://api.<domain>/v1`. |
-| MongoDB | The Railway MongoDB plugin (use its private `MONGO_URL`) or MongoDB Atlas. |
+| `bugtrail-api` | Deploy from GitHub. Railway detects Node with Nixpacks. Start command `npm start` (PM2 in the foreground). **Replicas: 1.** Variables: `NODE_ENV=production`, `MONGODB_URL`, `JWT_SECRET` (long and random), `CLIENT_URL` (the web service's URL), and `SMTP_*` only when you want real email. Not `DNS_SERVERS`. |
+| `bugtrail-web` | Deploy from GitHub. Build `npm run build`, start `npm start`. Set `NEXT_PUBLIC_API_URL=https://<api-service-url>/v1` **before the first build**: Next.js bakes it into the bundle, so changing it later needs a rebuild. |
+| MongoDB | The Railway MongoDB plugin (private `MONGO_URL` for the API) or MongoDB Atlas. |
 
-- Healthcheck path: `/v1/health` *(Phase 1)*.
-- Attach the custom domains in each service's **Settings → Networking**.
-- Railway's GitHub auto-deploy on `main` is fine. CI (lint/test) runs separately in GitHub Actions.
+- Healthcheck path: `/v1/health` (checks the database connection).
+- **Create the Admin** once, from your machine: install the Railway CLI, `railway link` to the API service, then `railway run npm run seed`. It runs the seed locally with Railway's variables and asks for the email and password as usual. The database must be reachable from your machine: Atlas, or the Railway MongoDB plugin's **public** URL (temporarily set `MONGODB_URL` to it for this one command).
+- Custom domains are optional for testing; attach them later in each service's **Settings → Networking** and update `CLIENT_URL` / `NEXT_PUBLIC_API_URL` (then rebuild the web).
+- Railway's GitHub auto-deploy is fine. CI (lint/test) runs separately in GitHub Actions.
 
 ## Option B: own VPS (Ubuntu)
 
@@ -65,7 +65,8 @@ server {
 }
 ```
 
-6. Because Nginx is in front, the API sets `app.set('trust proxy', 1)` *(Phase 1)* so rate limiting and secure cookies see the real client IP and protocol.
+6. Because Nginx is in front, the API sets `app.set('trust proxy', 1)` in production so rate limiting and secure cookies see the real client IP and protocol.
+7. Create the Admin on the server: `npm run seed` in an SSH session (it asks for the email and password).
 
 ## Release checklist
 - [ ] `npm run lint` and `npm test` are green in CI
