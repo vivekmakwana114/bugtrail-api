@@ -3,8 +3,11 @@ import { password, objectId, sortBy } from './custom.validation.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { roleValues } from '../config/roles.js';
 
-// Only the four roles are accepted. Permissions are never sent: they follow from the role.
+// Only the defined roles are accepted. Permissions are never sent: they follow from the role.
 const role = Joi.string().valid(...roleValues);
+
+/** Free-text job title next to the role ("MERN Developer"); '' clears it. */
+const designation = Joi.string().trim().max(100).allow('');
 
 const avatarUrl = Joi.string()
   .trim()
@@ -18,6 +21,8 @@ const createUser = {
     password: Joi.string().required().custom(password),
     name: Joi.string().trim().required().max(100),
     role: role.required(),
+    // Required when an Admin adds someone (decided 2026-10-13); optional when editing.
+    designation: Joi.string().trim().required().max(100),
   }),
 };
 
@@ -50,6 +55,7 @@ const updateUser = {
       password: Joi.string().custom(password),
       name: Joi.string().trim().max(100),
       role,
+      designation,
       avatarUrl,
     })
     .min(1),
@@ -63,6 +69,8 @@ const updateUserStatus = {
   body: Joi.object().keys({
     status: Joi.string().required().valid(userStatuses.ACTIVE, userStatuses.SUSPENDED, userStatuses.REJECTED),
     role,
+    // With approval only, like role: the approver can set the job title in the same step.
+    designation,
   }),
 };
 

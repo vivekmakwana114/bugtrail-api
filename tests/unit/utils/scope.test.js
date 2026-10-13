@@ -11,11 +11,14 @@ describe('Project scope', () => {
     expect(projectScopeFilter(admin)).toEqual({ deletedAt: null });
   });
 
-  test.each(['project_manager', 'developer', 'qa'])('a %s sees only non-deleted projects they are a member of', (role) => {
-    const user = userWithRole(role);
-    expect(canSeeAllProjects(user)).toBe(false);
-    expect(projectScopeFilter(user)).toEqual({ deletedAt: null, members: user._id });
-  });
+  test.each(['project_manager', 'developer', 'ui_ux', 'qa'])(
+    'a %s sees only non-deleted projects they are a member of',
+    (role) => {
+      const user = userWithRole(role);
+      expect(canSeeAllProjects(user)).toBe(false);
+      expect(projectScopeFilter(user)).toEqual({ deletedAt: null, members: user._id });
+    },
+  );
 
   test('a user without a role is still limited to their memberships (fails closed)', () => {
     const user = userWithRole(null);

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "BugTrail APIs",
-    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
+    "description": "BugTrail API, grouped by module. Start the API (`npm run dev`) and create the Admin (`npm run seed`), then:\n\n1. Set the collection variables `adminEmail` / `adminPassword` to the Admin you created in the seed.\n2. **Auth → Login** (saves `accessToken`).\n3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.\nOr just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.\n\nRoles are fixed values: admin, project_manager, developer, ui_ux, qa. What each role can do is defined in code\n(see **Roles → Access catalog**); permissions are never sent in requests.\n\nEvery request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says \"No auth\".\nThe refresh token is an httpOnly cookie: Postman keeps it in its cookie jar, so **Auth → Refresh tokens** works like a browser.\nWhen the access token expires (30 min) you get 401: run Refresh tokens or Login again.\n\nSwagger with full schemas: {{baseUrl}}/docs (development only).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -263,13 +263,13 @@
                 "register"
               ]
             },
-            "description": "Creates a `pending` user with no role. They can log in only after Users → Approve pending user.",
+            "description": "Creates a `pending` user with no role. designation (job title) is required. They can log in only after Users → Approve pending user.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"New Developer\",\n  \"email\": \"dev.{{$timestamp}}@example.com\",\n  \"password\": \"password1\"\n}",
+              "raw": "{\n  \"name\": \"New Developer\",\n  \"email\": \"dev.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"designation\": \"MERN Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -544,7 +544,7 @@
                 "roles"
               ]
             },
-            "description": "The four roles with what each can do, plus the grouped permission labels. Any signed-in user."
+            "description": "Every role (admin, project_manager, developer, ui_ux, qa) with what each can do, plus the grouped permission labels. Any signed-in user."
           },
           "response": [],
           "event": [
@@ -597,7 +597,7 @@
                 }
               ]
             },
-            "description": "Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | qa), status. Each row is the summary plus createdAt and lastLoginAt."
+            "description": "Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | ui_ux | qa), status. Each row is the summary plus createdAt and lastLoginAt."
           },
           "response": [],
           "event": [
@@ -648,6 +648,36 @@
           ]
         },
         {
+          "name": "List assignable users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/assignable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "assignable"
+              ]
+            },
+            "description": "Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Create user",
           "request": {
             "method": "POST",
@@ -669,7 +699,7 @@
             "description": "Requires `user:create`. Created active. Permissions follow from the role.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dana Developer\",\n  \"email\": \"dana.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"role\": \"developer\"\n}",
+              "raw": "{\n  \"name\": \"Dana Developer\",\n  \"email\": \"dana.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"role\": \"developer\",\n  \"designation\": \"MERN Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -834,7 +864,7 @@
             "description": "Requires `user:approve`. pending/rejected → active needs a role. Run Auth → Register first to fill `pendingUserId`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"developer\"\n}",
+              "raw": "{\n  \"status\": \"active\",\n  \"role\": \"developer\",\n  \"designation\": \"Flutter Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1174,7 +1204,7 @@
                 "{{projectId}}"
               ]
             },
-            "description": "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+            "description": "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager (PM or Admin) who isn't a member yet is added. status archived makes the project read-only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"description\": \"Updated from Postman\",\n  \"status\": \"active\"\n}",
@@ -2257,7 +2287,7 @@
                 "{{messageId}}"
               ]
             },
-            "description": "Your own messages only (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
+            "description": "Your own messages only, and only within 15 seconds of sending (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"body\": \"Can you check this on mobile (iOS and Android) too?\"\n}",

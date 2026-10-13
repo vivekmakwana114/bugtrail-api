@@ -10,7 +10,7 @@
  */
 
 /** Fields to select when populating a user that will go through userSummary (or userRef). */
-const userSummaryFields = 'name email role status avatarUrl';
+const userSummaryFields = 'name email role designation status avatarUrl';
 
 /**
  * @param {User|null} user
@@ -20,13 +20,14 @@ const userRef = (user) => (user ? { id: user.id, name: user.name, avatarUrl: use
 
 /**
  * @param {User} user
- * @returns {{ id: string, name: string, email: string, role: string|null, status: string, avatarUrl: string|null }}
+ * @returns {{ id: string, name: string, email: string, role: string|null, designation: string, status: string, avatarUrl: string|null }}
  */
 const userSummary = (user) => ({
   id: user.id,
   name: user.name,
   email: user.email,
   role: user.role,
+  designation: user.designation ?? '',
   status: user.status,
   avatarUrl: user.avatarUrl,
 });

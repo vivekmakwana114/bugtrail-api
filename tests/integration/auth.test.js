@@ -45,6 +45,7 @@ describe('Auth routes', () => {
         name: faker.person.fullName(),
         email: faker.internet.email().toLowerCase(),
         password: 'password1',
+        designation: 'MERN Developer',
       };
     });
 
@@ -108,7 +109,18 @@ describe('Auth routes', () => {
         .expect(httpStatus.OK);
 
       expect(Object.keys(res.body.user).sort()).toEqual(
-        ['avatarUrl', 'createdAt', 'email', 'id', 'lastLoginAt', 'name', 'permissions', 'role', 'status'].sort(),
+        [
+          'avatarUrl',
+          'createdAt',
+          'designation',
+          'email',
+          'id',
+          'lastLoginAt',
+          'name',
+          'permissions',
+          'role',
+          'status',
+        ].sort(),
       );
       expect(res.body.user).toMatchObject({ id: userOne._id.toHexString(), email: userOne.email, role: 'developer' });
       expect(res.body.user.permissions).toEqual(expect.arrayContaining(['bug:read', 'bug:progress']));

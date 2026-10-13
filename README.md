@@ -67,7 +67,7 @@ Login returns a short-lived **access token** in the body (the web app keeps it i
 - **Postman:** import [`docs/postman/BugTrail.postman_collection.json`](docs/postman/README.md), one folder per module (Health, Auth, Roles, Users, Projects, Bugs, Chat, Notifications, Dashboard).
 - **Swagger:** http://localhost:5000/v1/docs (development only).
 - **Live events (Socket.IO):** `npm run realtime:listen -- <accessToken> [bugIdOrKey]` prints every event that user receives (notifications, and chat/status for the bug). Copy the token from Postman's `accessToken` variable.
-- **Emails** go through a MongoDB outbox (`emailoutboxes`) and a worker inside the API process. With no `SMTP_HOST` they're printed in the API console instead of sent.
+- **Emails** go through a MongoDB outbox (`emailoutboxes`) and a worker inside the API process. Each kind has its own HTML design (`src/emails/`) plus a plain-text part; `npm run email:preview` writes them all to `.email-previews/` to look at. With no `SMTP_HOST` they're printed in the API console instead of sent.
 
 ## Scripts
 
@@ -77,6 +77,7 @@ Login returns a short-lived **access token** in the body (the web app keeps it i
 | `npm run seed` | Create the first Admin (asks for email + password; idempotent) |
 | `npm run postman` | Regenerate the Postman collection from `docs/postman/build-collection.js` |
 | `npm run realtime:listen -- <token> [bug]` | Watch live Socket.IO events for a user (dev tool) |
+| `npm run email:preview` | Render every email template with sample data into `.email-previews/` |
 | `npm start` | Start with PM2 in the foreground (production) |
 | `npm test` | Run the Jest suite (in-memory MongoDB, no setup needed) |
 | `npm run coverage` | Tests with a coverage report |

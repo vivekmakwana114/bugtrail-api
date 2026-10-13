@@ -53,7 +53,7 @@ export default router;
  * @swagger
  * components:
  *   parameters:
- *     DashboardProjectId: { in: query, name: projectId, schema: { type: string }, description: Limit to one project you can see }
+ *     DashboardProjectId: { in: query, name: projectId, schema: { type: string }, description: Limit to one project you can see (its id or key, e.g. BT) }
  *     DashboardFrom: { in: query, name: from, schema: { type: string, example: '2026-10-01' }, description: Bugs reported on or after }
  *     DashboardTo: { in: query, name: to, schema: { type: string, example: '2026-10-31' }, description: Bugs reported on or before (date-only = end of that day, UTC) }
  */

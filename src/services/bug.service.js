@@ -122,18 +122,19 @@ const statusFields = (status, now) => ({
 });
 
 /**
- * The assignee works on the bug, so they must be in the project, active, and able to progress bugs.
+ * The assignee works on the bug, so they must be active and able to progress bugs. They don't
+ * have to be on the project yet (changed 2026-10-13): assigning someone who isn't adds them as a
+ * member (and tells them), because they need to see the project to work on the bug.
+ * @param {User} actor
  * @param {Project} project
  * @param {ObjectId|string} userId
  */
-const assertAssignable = async (project, userId) => {
-  if (!project.hasMember(userId)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'The assignee must be a member of the project');
-  }
+const assertAssignable = async (actor, project, userId) => {
   const user = await User.findOne({ _id: userId, status: userStatuses.ACTIVE });
   if (!user || !user.hasPermission('bug:progress')) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'The assignee must be an active user who can work on bugs');
   }
+  await projectService.ensureMember(actor, project, user._id);
 };
 
 /**
@@ -145,7 +146,7 @@ const bugRefs = (bug, project) => {
   const key = `${project.key}-${bug.bugNumber}`;
   return {
     key,
-    link: `/projects/${project.id}/bugs/${key}`,
+    link: `/projects/${project.key}/bugs/${key}`, // keys, not ids: ids stay out of URLs
     entity: { kind: 'bug', id: bug.id, projectId: project.id, key },
   };
 };
@@ -373,7 +374,7 @@ const createBug = async (actor, body) => {
     throw new ApiError(httpStatus.FORBIDDEN, `You can't report a bug as ${status}`);
   }
   if (assignee) {
-    await assertAssignable(project, assignee);
+    await assertAssignable(actor, project, assignee);
   }
 
   // Atomic: two bugs reported at the same moment can't get the same number. If the insert
@@ -493,7 +494,7 @@ const assignBug = async (actor, bugId, { assignee, sendEmail = false }) => {
     return withDetails(actor, bug, project); // nothing to change
   }
   if (assignee) {
-    await assertAssignable(project, assignee);
+    await assertAssignable(actor, project, assignee);
   }
 
   const updated = await Bug.findOneAndUpdate(

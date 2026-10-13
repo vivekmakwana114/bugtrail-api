@@ -38,12 +38,13 @@ export default router;
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email, password]
+ *             required: [name, email, password, designation]
  *             properties:
  *               name: { type: string }
  *               email: { type: string, format: email, description: must be unique }
  *               password: { type: string, format: password, minLength: 8, description: At least one number and one letter }
- *             example: { name: Jane QA, email: jane@example.com, password: password1 }
+ *               designation: { type: string, maxLength: 100, description: Job title, e.g. Manual QA }
+ *             example: { name: Jane QA, email: jane@example.com, password: password1, designation: Manual QA }
  *     responses:
  *       "201":
  *         description: Created (status pending, no tokens issued)

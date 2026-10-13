@@ -7,6 +7,7 @@ import notificationService from './notification.service.js';
 import { emitToBug, getUserIdsViewingBug } from '../sockets/emitter.js';
 import { projectStatuses } from '../config/projectStatuses.js';
 import { notificationTypes } from '../config/notificationTypes.js';
+import { MESSAGE_EDIT_WINDOW_MS } from '../config/chat.js';
 import { messageSerializer } from '../serializers/index.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
 
@@ -107,7 +108,7 @@ const sendMessage = async (actor, bugId, { body, mentions = [] }) => {
   const common = {
     actor,
     entity: { kind: 'bug', id: bug.id, projectId: project.id, key },
-    link: `/projects/${project.id}/bugs/${key}`,
+    link: `/projects/${project.key}/bugs/${key}`,
     skipUserIds: viewing,
   };
   const preview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
@@ -131,7 +132,8 @@ const sendMessage = async (actor, bugId, { body, mentions = [] }) => {
 };
 
 /**
- * Edit your own message. Mentions aren't re-sent: editing shouldn't ping people again.
+ * Edit your own message, only within MESSAGE_EDIT_WINDOW_MS of sending it (15s). Mentions aren't
+ * re-sent: editing shouldn't ping people again.
  * @param {User} actor
  * @param {ObjectId} messageId
  * @param {{ body: string }} body
@@ -140,6 +142,12 @@ const sendMessage = async (actor, bugId, { body, mentions = [] }) => {
 const editMessage = async (actor, messageId, { body }) => {
   const { message, project } = await getOwnMessageOrThrow(actor, messageId);
   assertProjectWritable(project);
+  if (Date.now() - message.createdAt.getTime() > MESSAGE_EDIT_WINDOW_MS) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      `Messages can only be edited for ${MESSAGE_EDIT_WINDOW_MS / 1000} seconds after sending.`,
+    );
+  }
   message.body = body;
   message.editedAt = new Date();
   await message.save();

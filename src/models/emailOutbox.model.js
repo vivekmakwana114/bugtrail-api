@@ -23,6 +23,8 @@ const emailOutboxSchema = mongoose.Schema(
     to: { type: String, required: true, trim: true, lowercase: true },
     subject: { type: String, required: true, maxlength: 300 },
     text: { type: String, required: true },
+    // The designed version (src/emails). Optional: rows queued before it existed have text only.
+    html: { type: String, default: null },
     status: {
       type: String,
       enum: Object.values(emailOutboxStatuses),

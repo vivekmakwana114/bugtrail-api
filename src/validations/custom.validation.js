@@ -1,8 +1,17 @@
 import Joi from 'joi';
+import { isObjectIdRef, isProjectKeyRef } from '../utils/projectRef.js';
 
 const objectId = (value, helpers) => {
   if (!value.match(/^[0-9a-fA-F]{24}$/)) {
     return helpers.message('{{#label}} must be a valid mongo id');
+  }
+  return value;
+};
+
+/** A project's database id or its key (BT, CHK), in any case. See utils/projectRef.js. */
+const projectRef = (value, helpers) => {
+  if (!isObjectIdRef(value) && !isProjectKeyRef(value)) {
+    return helpers.message('{{#label}} must be a project id or key');
   }
   return value;
 };
@@ -53,4 +62,4 @@ const driveUrl = (value, helpers) => {
   return value;
 };
 
-export { objectId, password, sortBy, driveUrl };
+export { objectId, projectRef, password, sortBy, driveUrl };

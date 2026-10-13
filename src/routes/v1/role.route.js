@@ -37,7 +37,7 @@ export default router;
  * @swagger
  * /roles:
  *   get:
- *     summary: The four roles with what each can do, and the grouped permission labels
+ *     summary: Every role with what each can do, and the grouped permission labels
  *     tags: [Roles]
  *     security:
  *       - bearerAuth: []

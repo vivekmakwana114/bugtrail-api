@@ -27,7 +27,7 @@ export default router;
  *   parameters:
  *     - { in: path, name: messageId, required: true, schema: { type: string } }
  *   patch:
- *     summary: Edit your own message (requires chat:send)
+ *     summary: Edit your own message within 15 seconds of sending it (requires chat:send); after that it is final
  *     description: Broadcast as `message:updated`. Mentions aren't re-notified.
  *     tags: [Chat]
  *     security:

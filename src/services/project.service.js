@@ -3,6 +3,7 @@ import { Bug, Project, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
+import { projectRefFilter } from '../utils/projectRef.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
@@ -24,7 +25,8 @@ import { notificationTypes } from '../config/notificationTypes.js';
  * @returns {Promise<Project>}
  */
 const getProjectOrThrow = async (actor, projectId) => {
-  const project = await Project.findOne({ _id: projectId, ...projectScopeFilter(actor) });
+  // By id or key (BT); either way limited to what this user may see.
+  const project = await Project.findOne({ ...projectRefFilter(projectId), ...projectScopeFilter(actor) });
   if (!project) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Project not found');
   }
@@ -74,7 +76,7 @@ const notifyAddedMembers = (actor, project, userIds) =>
     title: `You were added to ${project.name}`,
     message: `${actor.name} added you to ${project.name} (${project.key}).`,
     entity: { kind: 'project', id: project.id, key: project.key },
-    link: `/projects/${project.id}`,
+    link: `/projects/${project.key}`, // the key, not the id: ids stay out of URLs
   });
 
 /**
@@ -220,6 +222,8 @@ const createProject = async (actor, { members = [], manager = null, ...fields })
 
 /**
  * Name, description, status and manager. The key never changes; members have their own endpoints.
+ * A manager who isn't on the project yet is added as a member (changed 2026-10-13, like
+ * assigning a bug), since running a project means seeing it.
  * @param {User} actor
  * @param {ObjectId} projectId
  * @param {Object} body
@@ -230,11 +234,10 @@ const updateProject = async (actor, projectId, { manager, ...fields }) => {
 
   if (manager !== undefined) {
     if (manager !== null) {
-      if (!project.hasMember(manager)) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'The manager must be a member of the project. Add them first.');
-      }
       const [user] = await getAssignableUsersOrThrow([manager]);
       assertCanBeManager(user);
+      // eslint-disable-next-line no-use-before-define -- defined below with the member helpers
+      await ensureMember(actor, project, user._id);
     }
     project.manager = manager;
   }
@@ -275,6 +278,21 @@ const addMembers = async (actor, projectId, userIds) => {
     newMembers.map((user) => user._id),
   );
   return getMembers(project._id);
+};
+
+/**
+ * Make sure someone is on the project, adding them (with the usual "you were added"
+ * notification) if they aren't. Used when a bug is assigned to a non-member; the caller has
+ * already checked they're an active user who can work on bugs.
+ * @param {User} actor
+ * @param {Project} project - updated in memory too, so later checks in the same request see it
+ * @param {ObjectId} userId
+ */
+const ensureMember = async (actor, project, userId) => {
+  if (project.hasMember(userId)) return;
+  await Project.updateOne({ _id: project._id }, { $addToSet: { members: userId } });
+  project.members.push(userId);
+  await notifyAddedMembers(actor, project, [userId]);
 };
 
 /**
@@ -327,6 +345,7 @@ export default {
   updateProject,
   deleteProject,
   addMembers,
+  ensureMember,
   removeMember,
   removeUserFromAllProjects,
   getBugSummaries,

@@ -3,7 +3,7 @@ import { Bug, Token, User } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import escapeRegex from '../utils/escapeRegex.js';
 import { userStatuses, allowedStatusTransitions } from '../config/userStatuses.js';
-import { roles } from '../config/roles.js';
+import { roles, getRolesWithPermission } from '../config/roles.js';
 import { tokenTypes } from '../config/tokens.js';
 import projectService from './project.service.js';
 import emailService from './email.service.js';
@@ -107,6 +107,15 @@ const queryUsers = async ({ search, ...filter }, options) => {
 };
 
 /**
+ * Everyone a bug can be assigned to: active users whose role can work on bugs (bug:progress).
+ * Feeds the assignee pickers and the bug list's assignee filter. Asked by permission, not by
+ * role name, so a new role (or a changed matrix) is picked up automatically.
+ * @returns {Promise<User[]>} sorted by name
+ */
+const getAssignableUsers = async () =>
+  User.find({ status: userStatuses.ACTIVE, role: { $in: getRolesWithPermission('bug:progress') } }).sort({ name: 1 });
+
+/**
  * @param {ObjectId} id
  * @returns {Promise<User>}
  */
@@ -157,7 +166,7 @@ const createFirstAdmin = async ({ email, password, name = 'Admin' }) => {
 /**
  * Admin-created users are active immediately (they skip the approval queue).
  * @param {User} actor
- * @param {Object} userBody - name, email, password, role
+ * @param {Object} userBody - name, email, password, role, designation
  * @returns {Promise<User>}
  */
 const createUserAsActor = async (actor, userBody) => {
@@ -168,7 +177,7 @@ const createUserAsActor = async (actor, userBody) => {
 /**
  * @param {User} actor
  * @param {ObjectId} userId
- * @param {Object} updateBody - name, email, password, avatarUrl, role
+ * @param {Object} updateBody - name, email, password, avatarUrl, role, designation
  * @returns {Promise<User>}
  */
 const updateUserAsActor = async (actor, userId, { role, ...profile }) => {
@@ -206,10 +215,10 @@ const updateUserAsActor = async (actor, userId, { role, ...profile }) => {
  * goes through the same role-assignment guard as any other role change.
  * @param {User} actor
  * @param {ObjectId} userId
- * @param {{ status: string, role?: string }} body
+ * @param {{ status: string, role?: string, designation?: string }} body
  * @returns {Promise<User>}
  */
-const updateUserStatusAsActor = async (actor, userId, { status, role }) => {
+const updateUserStatusAsActor = async (actor, userId, { status, role, designation }) => {
   assertNotSelf(actor, userId, "You can't change your own status");
   const target = await getUserOrThrow(userId);
   assertCanManageUser(actor, target);
@@ -225,8 +234,9 @@ const updateUserStatusAsActor = async (actor, userId, { status, role }) => {
     }
     assertCanAssignRole(actor, nextRole);
     target.role = nextRole;
-  } else if (role) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'A role can only be set when activating a user');
+    if (designation !== undefined) target.designation = designation;
+  } else if (role || designation !== undefined) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'A role and designation can only be set when activating a user');
   }
 
   if (target.status === userStatuses.ACTIVE) {
@@ -283,6 +293,7 @@ const updateMe = async (user, updateBody) => {
 export default {
   createUser,
   queryUsers,
+  getAssignableUsers,
   getUserById,
   getUserByEmail,
   updateUserById,

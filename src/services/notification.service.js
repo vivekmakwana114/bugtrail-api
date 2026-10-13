@@ -4,6 +4,7 @@ import ApiError from '../utils/ApiError.js';
 import logger from '../config/logger.js';
 import { userStatuses } from '../config/userStatuses.js';
 import emailService from './email.service.js';
+import { notificationEmail } from '../emails/templates.js';
 import { emitToUsers } from '../sockets/emitter.js';
 import { notificationSerializer } from '../serializers/index.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
@@ -69,8 +70,16 @@ const notify = async ({
     });
 
     if (sendEmail) {
-      const text = `${message}${link ? `\n\nOpen in BugTrail: ${emailService.appLink(link)}` : ''}`;
-      await Promise.all(users.map((user) => emailService.queueEmail(user.email, title, text)));
+      // One designed email per recipient (src/emails/templates.js), greeting them by name.
+      const url = link ? emailService.appLink(link) : null;
+      await Promise.all(
+        users.map((user) =>
+          emailService.queueTemplate(
+            user.email,
+            notificationEmail({ type, title, message, url, recipientName: user.name, actorName: actor?.name }),
+          ),
+        ),
+      );
     }
   } catch (error) {
     logger.error(`notify(${type}) failed: ${error.message}`);

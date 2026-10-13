@@ -10,7 +10,7 @@ import { userOneAccessToken, adminAccessToken, projectManagerAccessToken } from 
 
 setupTestDB();
 
-const SUMMARY_KEYS = ['avatarUrl', 'email', 'id', 'name', 'role', 'status'].sort();
+const SUMMARY_KEYS = ['avatarUrl', 'designation', 'email', 'id', 'name', 'role', 'status'].sort();
 const LIST_ITEM_KEYS = [...SUMMARY_KEYS, 'createdAt', 'lastLoginAt'].sort();
 const DETAIL_KEYS = [...SUMMARY_KEYS, 'createdAt', 'lastLoginAt', 'permissions'].sort();
 
@@ -27,6 +27,7 @@ describe('User routes', () => {
         email: faker.internet.email().toLowerCase(),
         password: 'password1',
         role: 'qa',
+        designation: 'Manual QA',
       };
     });
 
@@ -93,6 +94,7 @@ describe('User routes', () => {
         name: userOne.name,
         email: userOne.email,
         role: 'developer',
+        designation: '',
         status: 'active',
         avatarUrl: null,
         lastLoginAt: null,
@@ -245,14 +247,14 @@ describe('User routes', () => {
 });
 
 describe('GET /v1/roles (access catalog)', () => {
-  test('should return the four roles with what each can do, and the permission groups', async () => {
+  test('should return every role with what each can do, and the permission groups', async () => {
     await insertUsers([userOne]);
     const res = await request(app)
       .get('/v1/roles')
       .set('Authorization', `Bearer ${userOneAccessToken}`)
       .expect(httpStatus.OK);
 
-    expect(res.body.roles.map((r) => r.key)).toEqual(['admin', 'project_manager', 'developer', 'qa']);
+    expect(res.body.roles.map((r) => r.key)).toEqual(['admin', 'project_manager', 'developer', 'ui_ux', 'qa']);
     expect(res.body.roles.find((r) => r.key === 'qa').permissions).toEqual(getRolePermissions('qa'));
     expect(res.body.permissionGroups.map((g) => g.key)).toEqual(['dashboard', 'project', 'bug', 'chat', 'user']);
   });

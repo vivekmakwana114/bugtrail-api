@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { objectId } from './custom.validation.js';
+import { projectRef } from './custom.validation.js';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -22,7 +22,8 @@ const isoDate = ({ endOfDay = false } = {}) =>
   });
 
 const scopeKeys = {
-  projectId: Joi.string().custom(objectId),
+  // Id or key (BT): the dashboard URL carries the key (?project=BT).
+  projectId: Joi.string().custom(projectRef),
   from: isoDate(),
   to: isoDate({ endOfDay: true }),
 };

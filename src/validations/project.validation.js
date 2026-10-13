@@ -1,9 +1,10 @@
 import Joi from 'joi';
-import { objectId, sortBy } from './custom.validation.js';
+import { objectId, projectRef, sortBy } from './custom.validation.js';
 import { projectStatusValues } from '../config/projectStatuses.js';
 import { PROJECT_KEY_PATTERN } from '../models/project.model.js';
 
-const projectId = Joi.string().required().custom(objectId);
+// Id or key (BT): the web app addresses projects by key so database ids stay out of URLs.
+const projectId = Joi.string().required().custom(projectRef);
 const userIds = Joi.array().items(Joi.string().custom(objectId)).unique().max(100);
 
 const name = Joi.string().trim().max(100);

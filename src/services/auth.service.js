@@ -23,8 +23,15 @@ const inactiveStatusMessages = {
  * @param {{ name: string, email: string, password: string }} userBody
  * @returns {Promise<User>}
  */
-const register = async ({ name, email, password }) => {
-  const user = await userService.createUser({ name, email, password, status: userStatuses.PENDING, role: null });
+const register = async ({ name, email, password, designation }) => {
+  const user = await userService.createUser({
+    name,
+    email,
+    password,
+    designation,
+    status: userStatuses.PENDING,
+    role: null,
+  });
   const approvers = await User.find({
     role: { $in: getRolesWithPermission('user:approve') },
     status: userStatuses.ACTIVE,

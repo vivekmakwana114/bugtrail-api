@@ -55,6 +55,14 @@ const userSchema = mongoose.Schema(
       trim: true,
       default: null,
     },
+    // Free-text job title shown next to the role, e.g. "MERN Developer" or "Flutter Developer".
+    // Set by an Admin; descriptive only, never used for access (the role decides that).
+    designation: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: '',
+    },
     lastLoginAt: {
       type: Date,
       default: null,

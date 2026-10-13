@@ -77,7 +77,7 @@ const collection = {
       '3. Anything else. Ids created along the way (`userId`, `pendingUserId`, `projectId`, `bugId`) are saved automatically.',
       'Or just **Run collection**: the folders are ordered so a full top-to-bottom run passes against a freshly seeded API.',
       '',
-      'Roles are fixed values: admin, project_manager, developer, qa. What each role can do is defined in code',
+      'Roles are fixed values: admin, project_manager, developer, ui_ux, qa. What each role can do is defined in code',
       '(see **Roles → Access catalog**); permissions are never sent in requests.',
       '',
       'Every request sends `Authorization: Bearer {{accessToken}}` (collection-level auth) unless it says "No auth".',
@@ -145,9 +145,15 @@ const collection = {
         method: 'POST',
         path: '/auth/register',
         noAuth: true,
-        body: { name: 'New Developer', email: 'dev.{{$timestamp}}@example.com', password: 'password1' },
+        body: {
+          name: 'New Developer',
+          email: 'dev.{{$timestamp}}@example.com',
+          password: 'password1',
+          designation: 'MERN Developer',
+        },
         tests: [ok(201), saveVar('pendingUserId', 'pm.response.json().user.id')],
-        description: 'Creates a `pending` user with no role. They can log in only after Users → Approve pending user.',
+        description:
+          'Creates a `pending` user with no role. designation (job title) is required. They can log in only after Users → Approve pending user.',
       }),
       req({
         name: 'Change password',
@@ -207,7 +213,8 @@ const collection = {
           method: 'GET',
           path: '/roles',
           tests: [ok()],
-          description: 'The four roles with what each can do, plus the grouped permission labels. Any signed-in user.',
+          description:
+            'Every role (admin, project_manager, developer, ui_ux, qa) with what each can do, plus the grouped permission labels. Any signed-in user.',
         }),
       ],
     ),
@@ -219,7 +226,7 @@ const collection = {
         path: '/users?search=a&sortBy=name:asc&limit=10&page=1',
         tests: [ok()],
         description:
-          'Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | qa), status. Each row is the summary plus createdAt and lastLoginAt.',
+          'Requires `user:read`. Filters: search (part of the name or email, case-insensitive), name (exact), role (admin | project_manager | developer | ui_ux | qa), status. Each row is the summary plus createdAt and lastLoginAt.',
       }),
       req({
         name: 'List pending users (approval queue)',
@@ -228,10 +235,24 @@ const collection = {
         tests: [ok()],
       }),
       req({
+        name: 'List assignable users',
+        method: 'GET',
+        path: '/users/assignable',
+        tests: [ok()],
+        description:
+          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member.',
+      }),
+      req({
         name: 'Create user',
         method: 'POST',
         path: '/users',
-        body: { name: 'Dana Developer', email: 'dana.{{$timestamp}}@example.com', password: 'password1', role: 'developer' },
+        body: {
+          name: 'Dana Developer',
+          email: 'dana.{{$timestamp}}@example.com',
+          password: 'password1',
+          role: 'developer',
+          designation: 'MERN Developer',
+        },
         tests: [ok(201), saveVar('userId', 'pm.response.json().id')],
         description: 'Requires `user:create`. Created active. Permissions follow from the role.',
       }),
@@ -257,7 +278,7 @@ const collection = {
         name: 'Approve user',
         method: 'PATCH',
         path: '/users/{{pendingUserId}}/status',
-        body: { status: 'active', role: 'developer' },
+        body: { status: 'active', role: 'developer', designation: 'Flutter Developer' },
         tests: [ok()],
         description:
           'Requires `user:approve`. pending/rejected → active needs a role. Run Auth → Register first to fill `pendingUserId`.',
@@ -331,7 +352,7 @@ const collection = {
           body: { description: 'Updated from Postman', status: 'active' },
           tests: [ok()],
           description:
-            "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager must already be a member.",
+            "Requires `project:update` (PM within their projects, Admin). Name, description, status, manager. The key can't change; a new manager (PM or Admin) who isn't a member yet is added. status archived makes the project read-only.",
         }),
         req({
           name: 'Add members',
@@ -550,7 +571,8 @@ const collection = {
           path: '/messages/{{messageId}}',
           body: { body: 'Can you check this on mobile (iOS and Android) too?' },
           tests: [ok()],
-          description: "Your own messages only (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
+          description:
+            "Your own messages only, and only within 15 seconds of sending (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
         }),
         req({
           name: 'Delete message',
