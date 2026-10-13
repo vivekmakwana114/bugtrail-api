@@ -174,7 +174,7 @@ const collection = {
         body: { email: '{{adminEmail}}' },
         tests: [ok(204)],
         description:
-          'Always 204. With EMAIL_ENABLED=false the reset link is printed in the API console: copy its token into `resetToken`.',
+          'Always 204. With SMTP_HOST empty the reset link is printed in the API console: copy its token into `resetToken`.',
       }),
       req({
         name: 'Reset password',

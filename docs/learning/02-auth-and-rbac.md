@@ -106,6 +106,15 @@ Controllers never `res.send(document)`. They pass it through a serializer (`src/
 
 Picking (an allow-list) beats removing (a block-list): a field added to the model later, like an internal flag or a reset counter, is **invisible until someone deliberately exposes it**. Lists stay small too, which matters when the bug grid embeds a reporter and an assignee in every row.
 
+### 9. Cookie settings from the environment, and the CSRF guard that comes with them (2026-10-13)
+The refresh cookie used to take `COOKIE_SECURE` and `COOKIE_SAME_SITE` from env. Getting them wrong broke sign-in in ways that are hard to debug, and the right values follow from where we run, so they now live in code (`src/utils/refreshCookie.js`):
+- **development/test:** `SameSite=Lax`, not `Secure`. Localhost is plain HTTP, and the browser would never send a `Secure` cookie there. `:3000` and `:5000` are the same *site* (ports don't count), so `Lax` is enough.
+- **production:** `Secure` + `SameSite=None`. Our first deploy uses two `*.up.railway.app` URLs. That domain is on the Public Suffix List, so a browser treats them as **different sites**, and only `None` lets the cookie travel between them.
+
+`None` has a cost: a page on *any* site can make the browser send our cookie, which is cross-site request forgery (CSRF). CORS doesn't stop that, because CORS only hides the response from the attacker's script; the request (and its `Set-Cookie`) still happens. So the two routes that act on the cookie alone (`/auth/refresh-tokens`, `/auth/logout`) go through `requireAppOrigin`: browsers always send an `Origin` header on cross-site POSTs and a page can't fake it, so anything other than `CLIENT_URL` gets a 403. A request with no `Origin` comes from Postman, curl or tests, which have no victim's cookie to abuse, so it passes.
+
+Takeaway: when you loosen one browser protection (`SameSite`), add the guard that replaces it in the same change, and test both sides. A production-mode check confirmed the flags (`HttpOnly; Secure; SameSite=None`), a 403 for a foreign Origin, and 200 for the web app's.
+
 ## Try it yourself
 1. `npm run seed` in **PowerShell or Command Prompt** (Git Bash: `winpty npm run seed`). Notice the password is masked, and an invalid password is rejected with the same rule the API uses.
 2. Import `docs/postman/BugTrail.postman_collection.json`, set `adminEmail`/`adminPassword`, and **Run collection**. Then open `List users` and `Me`: compare the two shapes.

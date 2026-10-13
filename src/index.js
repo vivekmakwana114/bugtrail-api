@@ -2,6 +2,7 @@ import http from 'http';
 import mongoose from 'mongoose';
 import app from './app.js';
 import config from './config/config.js';
+import applyDnsOverride from './config/dns.js';
 import logger from './config/logger.js';
 import initSockets from './sockets/index.js';
 import startEmailOutboxWorker from './jobs/emailOutbox.worker.js';
@@ -14,6 +15,9 @@ import startEmailOutboxWorker from './jobs/emailOutbox.worker.js';
 let server;
 let io;
 let stopEmailWorker;
+
+applyDnsOverride(); // no-op unless DNS_SERVERS is set (a local workaround)
+logger.info(config.email.enabled ? 'Email: sending via SMTP' : 'Email: SMTP_HOST not set, emails are logged only');
 
 mongoose.connect(config.mongoose.url, config.mongoose.options).then(() => {
   logger.info('Connected to MongoDB');

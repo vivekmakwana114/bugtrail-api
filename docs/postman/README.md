@@ -13,7 +13,7 @@ Ids are captured for you by the test scripts: **Register** saves `pendingUserId`
 
 Postman can't save Socket.IO requests in a collection. To see the live side, run `npm run realtime:listen -- {{accessToken}} <bugId>` in a terminal while you send Chat requests. The refresh token is an httpOnly cookie that Postman keeps in its cookie jar, so **Refresh tokens** works like a browser. The Postman desktop app is needed for cookies on `localhost`.
 
-**Reset password** skips itself until you paste a token into `resetToken`. With `EMAIL_ENABLED=false`, the reset link is printed in the API console after **Forgot password**.
+**Reset password** skips itself until you paste a token into `resetToken`. With `SMTP_HOST` empty, the reset link is printed in the API console after **Forgot password**.
 
 ## Change it
 Don't edit the JSON by hand. The requests are defined in `build-collection.js`; edit that, then run:

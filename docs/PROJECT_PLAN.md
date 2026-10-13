@@ -97,7 +97,7 @@ There are two repos:
 
 Keep the existing layers: `routes → validations (Joi) → controllers (catchAsync) → services → models`, plus `ApiError` and the error middleware. New folders: `src/sockets/`, `src/jobs/`, `src/scripts/seed.js`, `src/utils/scope.js`.
 
-**New env vars** (all validated in `config.js`): `CLIENT_URL`, `COOKIE_SECURE`, `EMAIL_ENABLED`, `SEED_ADMIN_NAME/EMAIL/PASSWORD`.
+**New env vars** (all validated in `config.js`): `CLIENT_URL`, plus `DNS_SERVERS` as a local-only workaround. _(Changed 2026-10-13: cookie settings follow `NODE_ENV` in code with an Origin check on refresh/logout; email sends when `SMTP_HOST` is set; the seed always asks in the terminal. `COOKIE_*`, `EMAIL_ENABLED` and `SEED_ADMIN_*` are gone.)_
 
 **Security fixes to the boilerplate:**
 - Limit `cors()` to `CLIENT_URL` with credentials. It currently allows any origin.
