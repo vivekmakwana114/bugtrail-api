@@ -24,6 +24,8 @@ const createUser = {
 const getUsers = {
   query: Joi.object().keys({
     name: Joi.string(),
+    // Part of the name or email, case-insensitive (the users screen's search box).
+    search: Joi.string().trim().max(100),
     role,
     status: Joi.string().valid(...Object.values(userStatuses)),
     sortBy: sortBy(['name', 'email', 'role', 'status', 'createdAt', 'lastLoginAt']),

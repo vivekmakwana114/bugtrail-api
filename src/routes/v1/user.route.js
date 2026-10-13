@@ -105,7 +105,8 @@ export default router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - { in: query, name: name, schema: { type: string } }
+ *       - { in: query, name: name, schema: { type: string }, description: Exact name }
+ *       - { in: query, name: search, schema: { type: string }, description: "Part of the name or email, case-insensitive" }
  *       - { in: query, name: role, schema: { type: string, enum: [admin, project_manager, developer, qa] } }
  *       - { in: query, name: status, schema: { type: string, enum: [pending, active, suspended, rejected] } }
  *       - { in: query, name: sortBy, schema: { type: string }, description: "field:asc|desc, e.g. name:asc" }

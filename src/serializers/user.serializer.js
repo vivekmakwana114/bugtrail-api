@@ -54,11 +54,23 @@ const registration = (user) => ({
 });
 
 /**
+ * One row of the users screen: the summary plus when they registered (the approval queue shows
+ * "registered 2h ago") and last signed in. Permissions stay on the detail endpoint.
+ * @param {User} user
+ * @returns {Object}
+ */
+const userListItem = (user) => ({
+  ...userSummary(user),
+  lastLoginAt: user.lastLoginAt,
+  createdAt: user.createdAt,
+});
+
+/**
  * @param {QueryResult} page - output of the paginate plugin
- * @returns {Object} same pagination meta, results as summaries
+ * @returns {Object} same pagination meta, results as list items
  */
 const userPage = ({ results, page, limit, totalPages, totalResults }) => ({
-  results: results.map(userSummary),
+  results: results.map(userListItem),
   page,
   limit,
   totalPages,
