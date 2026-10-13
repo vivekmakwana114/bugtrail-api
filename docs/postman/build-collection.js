@@ -145,9 +145,15 @@ const collection = {
         method: 'POST',
         path: '/auth/register',
         noAuth: true,
-        body: { name: 'New Developer', email: 'dev.{{$timestamp}}@example.com', password: 'password1' },
+        body: {
+          name: 'New Developer',
+          email: 'dev.{{$timestamp}}@example.com',
+          password: 'password1',
+          designation: 'MERN Developer',
+        },
         tests: [ok(201), saveVar('pendingUserId', 'pm.response.json().user.id')],
-        description: 'Creates a `pending` user with no role. They can log in only after Users → Approve pending user.',
+        description:
+          'Creates a `pending` user with no role. designation (job title) is required. They can log in only after Users → Approve pending user.',
       }),
       req({
         name: 'Change password',

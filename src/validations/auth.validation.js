@@ -6,6 +6,8 @@ const register = {
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
     name: Joi.string().trim().required().max(100),
+    // Required at sign-up (decided 2026-10-13): the approver sees their job title in the queue.
+    designation: Joi.string().trim().required().max(100),
   }),
 };
 

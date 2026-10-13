@@ -27,6 +27,7 @@ describe('User routes', () => {
         email: faker.internet.email().toLowerCase(),
         password: 'password1',
         role: 'qa',
+        designation: 'Manual QA',
       };
     });
 

@@ -21,7 +21,8 @@ const createUser = {
     password: Joi.string().required().custom(password),
     name: Joi.string().trim().required().max(100),
     role: role.required(),
-    designation,
+    // Required when an Admin adds someone (decided 2026-10-13); optional when editing.
+    designation: Joi.string().trim().required().max(100),
   }),
 };
 

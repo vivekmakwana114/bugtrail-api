@@ -108,13 +108,14 @@ export default router;
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email, password, role]
+ *             required: [name, email, password, role, designation]
  *             properties:
  *               name: { type: string }
  *               email: { type: string, format: email }
  *               password: { type: string, format: password, minLength: 8 }
- *               role: { type: string, enum: [admin, project_manager, developer, qa] }
- *             example: { name: Dana Developer, email: dana@example.com, password: password1, role: developer }
+ *               role: { type: string, enum: [admin, project_manager, developer, ui_ux, qa] }
+ *               designation: { type: string, maxLength: 100, description: Job title, e.g. MERN Developer }
+ *             example: { name: Dana Developer, email: dana@example.com, password: password1, role: developer, designation: MERN Developer }
  *     responses:
  *       "201":
  *         description: Created

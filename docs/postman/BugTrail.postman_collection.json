@@ -263,13 +263,13 @@
                 "register"
               ]
             },
-            "description": "Creates a `pending` user with no role. They can log in only after Users → Approve pending user.",
+            "description": "Creates a `pending` user with no role. designation (job title) is required. They can log in only after Users → Approve pending user.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"New Developer\",\n  \"email\": \"dev.{{$timestamp}}@example.com\",\n  \"password\": \"password1\"\n}",
+              "raw": "{\n  \"name\": \"New Developer\",\n  \"email\": \"dev.{{$timestamp}}@example.com\",\n  \"password\": \"password1\",\n  \"designation\": \"MERN Developer\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

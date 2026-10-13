@@ -45,6 +45,7 @@ describe('Auth routes', () => {
         name: faker.person.fullName(),
         email: faker.internet.email().toLowerCase(),
         password: 'password1',
+        designation: 'MERN Developer',
       };
     });
 
