@@ -2287,7 +2287,7 @@
                 "{{messageId}}"
               ]
             },
-            "description": "Your own messages only (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
+            "description": "Your own messages only, and only within 15 seconds of sending (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"body\": \"Can you check this on mobile (iOS and Android) too?\"\n}",

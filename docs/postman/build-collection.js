@@ -571,7 +571,8 @@ const collection = {
           path: '/messages/{{messageId}}',
           body: { body: 'Can you check this on mobile (iOS and Android) too?' },
           tests: [ok()],
-          description: "Your own messages only (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
+          description:
+            "Your own messages only, and only within 15 seconds of sending (403 otherwise). Sets `editedAt`; mentions aren't re-notified.",
         }),
         req({
           name: 'Delete message',
