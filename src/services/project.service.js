@@ -5,6 +5,7 @@ import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
 import { projectRefFilter } from '../utils/projectRef.js';
 import { userStatuses } from '../config/userStatuses.js';
+import { projectStatusValues } from '../config/projectStatuses.js';
 import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
 import notificationService from './notification.service.js';
@@ -160,15 +161,29 @@ const withDetails = async (project) => {
 /* ------------------------------------------------------------------ queries */
 
 /**
+ * How many projects of each status match the same scope and search, so every status tab can show
+ * its number whichever tab is open. Statuses with no projects are 0, never missing.
+ * @param {Object} filter - the list filter without its status
+ * @returns {Promise<Record<string, number>>}
+ */
+const countByStatus = async (filter) => {
+  const rows = await Project.aggregate([{ $match: filter }, { $group: { _id: '$status', count: { $sum: 1 } } }]);
+  const counts = Object.fromEntries(projectStatusValues.map((status) => [status, 0]));
+  rows.forEach(({ _id, count }) => {
+    if (_id in counts) counts[_id] = count;
+  });
+  return counts;
+};
+
+/**
  * Projects the actor can see, one page at a time, each with its bug summary for the pie.
  * @param {User} actor
  * @param {{ status?: string, search?: string }} filter
  * @param {Object} options - sortBy, limit, page
- * @returns {Promise<QueryResult>} results: [{ project, bugSummary }]
+ * @returns {Promise<QueryResult & { counts: Record<string, number> }>} results: [{ project, bugSummary }]
  */
 const queryProjects = async (actor, { status, search }, options) => {
-  const filter = {
-    ...(status && { status }),
+  const scoped = {
     ...(search && {
       $or: [
         { name: { $regex: escapeRegex(search), $options: 'i' } },
@@ -177,11 +192,15 @@ const queryProjects = async (actor, { status, search }, options) => {
     }),
     ...projectScopeFilter(actor), // last, so nothing above can widen the scope
   };
-  const page = await Project.paginate(filter, { sortBy: 'name:asc', ...options });
+  const [page, counts] = await Promise.all([
+    Project.paginate({ ...(status && { status }), ...scoped }, { sortBy: 'name:asc', ...options }),
+    countByStatus(scoped),
+  ]);
   await Project.populate(page.results, { path: 'manager', select: userSummaryFields });
   const summaries = await getBugSummaries(page.results.map((project) => project._id));
   return {
     ...page,
+    counts,
     results: page.results.map((project) => ({ project, bugSummary: summaries.get(project.id) ?? buildBugSummary() })),
   };
 };

@@ -42,15 +42,16 @@ const projectDetail = ({ project, bugSummary }) => ({
 });
 
 /**
- * @param {QueryResult} page - results are { project, bugSummary }
+ * @param {QueryResult} page - results are { project, bugSummary }; counts per status ignore the status filter
  * @returns {Object}
  */
-const projectPage = ({ results, page, limit, totalPages, totalResults }) => ({
+const projectPage = ({ results, page, limit, totalPages, totalResults, counts }) => ({
   results: results.map(projectListItem),
   page,
   limit,
   totalPages,
   totalResults,
+  counts,
 });
 
 /**
