@@ -336,7 +336,7 @@ const collection = {
           path: '/projects?sortBy=name:asc&limit=10&page=1',
           tests: [ok()],
           description:
-            'Requires `project:read`. Filters: status (active | completed | archived), search (name or key). Each item has `bugSummary` (byStatus counts, open count and the 3-slice `pie`).',
+            'Requires `project:read`. Filters: status (active | completed | archived), search (name or key). Each item has `bugSummary` (byStatus counts, open count and the 3-slice `pie`). `counts` ({ active, completed, archived }) counts every status for the same scope and search, ignoring the status filter, for the status tabs.',
         }),
         req({
           name: 'Get project',
