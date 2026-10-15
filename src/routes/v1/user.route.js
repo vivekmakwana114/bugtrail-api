@@ -6,10 +6,13 @@ import userController from '../../controllers/user.controller.js';
 
 const router = express.Router();
 
-// /me and /assignable must be registered before /:userId, or Express would treat them as a userId.
+// /me, /assignable and /project-candidates must be registered before /:userId, or Express would treat them as a userId.
 router.patch('/me', auth(), validate(userValidation.updateMe), userController.updateMe);
 // The assignee pickers and the bug list's assignee filter: anyone who can read bugs may ask.
 router.get('/assignable', auth(), authorize('bug:read'), userController.getAssignableUsers);
+// The project member and manager pickers. Its own route so managing members doesn't need user:read
+// (which also opens the Users and Roles screens): QA manages members without seeing those.
+router.get('/project-candidates', auth(), authorize('project:manage_members'), userController.getProjectCandidates);
 
 router
   .route('/')
@@ -44,7 +47,33 @@ export default router;
  * /users/assignable:
  *   get:
  *     summary: Everyone a bug can be assigned to (active users whose role can work on bugs), by name
- *     description: Assigning a bug to someone who isn't on the project adds them as a member.
+ *     description: Assigning a bug to someone who isn't on the project adds them as a member. Admins aren't listed, except the requesting admin themselves (only an admin can assign a bug to themselves).
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items: { $ref: '#/components/schemas/UserSummary' }
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ */
+
+/**
+ * @swagger
+ * /users/project-candidates:
+ *   get:
+ *     summary: Everyone who can join a project (active users with a role), by name. Requires project:manage_members
+ *     description: Feeds the project member and manager pickers, so managing members doesn't need user:read.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []

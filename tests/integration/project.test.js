@@ -393,13 +393,14 @@ describe('Project routes', () => {
         .expect(httpStatus.NOT_FOUND);
     });
 
-    test('should return 403 for a developer or QA (no project:manage_members)', async () => {
+    test('should return 403 for a developer (no project:manage_members) but let QA add members', async () => {
       await asDev(request(app).post(`/v1/projects/${projectOne._id}/members`))
         .send({ userIds: [qaUser._id.toString()] })
         .expect(httpStatus.FORBIDDEN);
+      // QA manages members since 2026-10-15.
       await as(qaUserAccessToken)(request(app).post(`/v1/projects/${projectTwo._id}/members`))
         .send({ userIds: [userOne._id.toString()] })
-        .expect(httpStatus.FORBIDDEN);
+        .expect(httpStatus.OK);
     });
   });
 

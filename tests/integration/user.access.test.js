@@ -173,7 +173,9 @@ describe('PATCH /v1/users/:userId (escalation guards)', () => {
     await insertUsers([projectManager, qaUser]);
     await grantToProjectManager('user:update');
     const res = await patchUser(qaUser._id, { password: 'takeover1' }, asPM).expect(httpStatus.FORBIDDEN);
-    expect(res.body.message).toBe("You can't manage a user with permissions you don't hold: bug:verify, bug:set_any_status");
+    expect(res.body.message).toBe(
+      "You can't manage a user with permissions you don't hold: project:create, bug:delete, bug:verify, bug:set_any_status",
+    );
   });
 
   test('should let a non-Admin edit a user whose permissions they all hold', async () => {
@@ -188,7 +190,7 @@ describe('PATCH /v1/users/:userId (escalation guards)', () => {
 
     const toQa = await patchUser(userOne._id, { role: 'qa' }, asPM).expect(httpStatus.FORBIDDEN);
     expect(toQa.body.message).toBe(
-      "You can't assign a role with permissions you don't hold: bug:verify, bug:set_any_status",
+      "You can't assign a role with permissions you don't hold: project:create, bug:delete, bug:verify, bug:set_any_status",
     );
     await patchUser(userOne._id, { role: 'admin' }, asPM).expect(httpStatus.FORBIDDEN);
   });

@@ -11,6 +11,7 @@ import { emitToBug } from '../sockets/emitter.js';
 import { notificationTypes } from '../config/notificationTypes.js';
 import { userStatuses } from '../config/userStatuses.js';
 import { projectStatuses } from '../config/projectStatuses.js';
+import { roles } from '../config/roles.js';
 import {
   bugStatuses,
   bugStatusValues,
@@ -125,6 +126,7 @@ const statusFields = (status, now) => ({
  * The assignee works on the bug, so they must be active and able to progress bugs. They don't
  * have to be on the project yet (changed 2026-10-13): assigning someone who isn't adds them as a
  * member (and tells them), because they need to see the project to work on the bug.
+ * An admin is never assigned by someone else: only they can take a bug themselves.
  * @param {User} actor
  * @param {Project} project
  * @param {ObjectId|string} userId
@@ -133,6 +135,9 @@ const assertAssignable = async (actor, project, userId) => {
   const user = await User.findOne({ _id: userId, status: userStatuses.ACTIVE });
   if (!user || !user.hasPermission('bug:progress')) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'The assignee must be an active user who can work on bugs');
+  }
+  if (user.role === roles.ADMIN && !user._id.equals(actor._id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Bugs can only be assigned to an admin by that admin themselves');
   }
   await projectService.ensureMember(actor, project, user._id);
 };

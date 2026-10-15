@@ -311,7 +311,7 @@
                 "change-password"
               ]
             },
-            "description": "Signs out other sessions and keeps this one (new cookie + access token). Followed by \"Change password back\" so the seed Admin keeps its password.",
+            "description": "Signs out other sessions and keeps this one (new cookie + access token). The new password must differ from the current one (400). Followed by \"Change password back\" so the seed Admin keeps its password.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"currentPassword\": \"{{adminPassword}}\",\n  \"newPassword\": \"new-password-123\"\n}",
@@ -662,7 +662,37 @@
                 "assignable"
               ]
             },
-            "description": "Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member."
+            "description": "Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member. Admins are left out, except the requesting admin: only an admin can assign a bug to themselves."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List project candidates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/project-candidates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "project-candidates"
+              ]
+            },
+            "description": "Requires `project:manage_members`. Everyone who can join a project (active users with a role), sorted by name. Feeds the project member and manager pickers, so QA can manage members without `user:read`."
           },
           "response": [],
           "event": [

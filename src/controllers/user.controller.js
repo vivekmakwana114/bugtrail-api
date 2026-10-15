@@ -46,7 +46,12 @@ const updateMe = catchAsync(async (req, res) => {
 });
 
 const getAssignableUsers = catchAsync(async (req, res) => {
-  const users = await userService.getAssignableUsers();
+  const users = await userService.getAssignableUsers(req.user);
+  res.send({ users: users.map(userSerializer.userSummary) });
+});
+
+const getProjectCandidates = catchAsync(async (req, res) => {
+  const users = await userService.getProjectCandidates();
   res.send({ users: users.map(userSerializer.userSummary) });
 });
 
@@ -54,6 +59,7 @@ export default {
   createUser,
   getUsers,
   getAssignableUsers,
+  getProjectCandidates,
   getUser,
   updateUser,
   updateUserStatus,

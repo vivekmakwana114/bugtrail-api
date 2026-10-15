@@ -162,7 +162,7 @@ const collection = {
         body: { currentPassword: '{{adminPassword}}', newPassword: 'new-password-123' },
         tests: [ok(), saveAccessToken],
         description:
-          'Signs out other sessions and keeps this one (new cookie + access token). Followed by "Change password back" so the seed Admin keeps its password.',
+          'Signs out other sessions and keeps this one (new cookie + access token). The new password must differ from the current one (400). Followed by "Change password back" so the seed Admin keeps its password.',
       }),
       req({
         name: 'Change password back',
@@ -240,7 +240,15 @@ const collection = {
         path: '/users/assignable',
         tests: [ok()],
         description:
-          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member.',
+          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member. Admins are left out, except the requesting admin: only an admin can assign a bug to themselves.',
+      }),
+      req({
+        name: 'List project candidates',
+        method: 'GET',
+        path: '/users/project-candidates',
+        tests: [ok()],
+        description:
+          'Requires `project:manage_members`. Everyone who can join a project (active users with a role), sorted by name. Feeds the project member and manager pickers, so QA can manage members without `user:read`.',
       }),
       req({
         name: 'Create user',
