@@ -162,7 +162,7 @@ const collection = {
         body: { currentPassword: '{{adminPassword}}', newPassword: 'new-password-123' },
         tests: [ok(), saveAccessToken],
         description:
-          'Signs out other sessions and keeps this one (new cookie + access token). Followed by "Change password back" so the seed Admin keeps its password.',
+          'Signs out other sessions and keeps this one (new cookie + access token). The new password must differ from the current one (400). Followed by "Change password back" so the seed Admin keeps its password.',
       }),
       req({
         name: 'Change password back',

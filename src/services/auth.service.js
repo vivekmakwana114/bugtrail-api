@@ -122,6 +122,18 @@ const forgotPassword = async (email) => {
 };
 
 /**
+ * A new password must differ from the current one: "changing" to the same password keeps a
+ * possibly leaked password alive while looking like it was rotated.
+ * @param {User} user
+ * @param {string} newPassword
+ */
+const assertNotCurrentPassword = async (user, newPassword) => {
+  if (await user.isPasswordMatch(newPassword)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'New password must be different from your current password');
+  }
+};
+
+/**
  * Reset password, then revoke every refresh token: if the password was reset
  * because the account was compromised, the attacker's sessions must end too.
  * @param {string} resetPasswordToken
@@ -129,17 +141,20 @@ const forgotPassword = async (email) => {
  * @returns {Promise}
  */
 const resetPassword = async (resetPasswordToken, newPassword) => {
+  let user;
   try {
     const resetPasswordTokenDoc = await tokenService.verifyToken(resetPasswordToken, tokenTypes.RESET_PASSWORD);
-    const user = await userService.getUserById(resetPasswordTokenDoc.user);
-    if (!user) {
-      throw new Error();
-    }
-    await Token.deleteMany({ user: user.id, type: { $in: [tokenTypes.RESET_PASSWORD, tokenTypes.REFRESH] } });
-    await userService.updateUserById(user.id, { password: newPassword });
+    user = await userService.getUserById(resetPasswordTokenDoc.user);
   } catch (error) {
+    user = null;
+  }
+  if (!user) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');
   }
+  // Checked before the token is used up, so the user can pick another password with the same link.
+  await assertNotCurrentPassword(user, newPassword);
+  await Token.deleteMany({ user: user.id, type: { $in: [tokenTypes.RESET_PASSWORD, tokenTypes.REFRESH] } });
+  await userService.updateUserById(user.id, { password: newPassword });
 };
 
 /**
@@ -156,6 +171,7 @@ const changePassword = async (user, currentPassword, newPassword) => {
   if (!(await user.isPasswordMatch(currentPassword))) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Current password is incorrect');
   }
+  await assertNotCurrentPassword(user, newPassword);
   await userService.updateUserById(user._id, { password: newPassword });
   await Token.deleteMany({ user: user._id, type: tokenTypes.REFRESH });
   return tokenService.generateAuthTokens(user);
