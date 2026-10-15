@@ -83,7 +83,7 @@ export default router;
  *     description: |
  *       `key` is the prefix of every bug key (BT-42). It's stored uppercase, must be unique (deleted
  *       projects keep theirs) and can't be changed later. The manager is added to the members and must
- *       be a Project Manager or an Admin. Members must be active users.
+ *       be a Project Manager or an Admin (by role). Members must be active users.
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []

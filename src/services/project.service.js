@@ -5,6 +5,7 @@ import escapeRegex from '../utils/escapeRegex.js';
 import { canSeeAllProjects, projectScopeFilter } from '../utils/scope.js';
 import { projectRefFilter } from '../utils/projectRef.js';
 import { userStatuses } from '../config/userStatuses.js';
+import { roles } from '../config/roles.js';
 import { projectStatusValues } from '../config/projectStatuses.js';
 import { bugStatusValues, bugStatuses, pieSlices, openBugStatuses, getAgedOpenCutoff } from '../config/bugStatuses.js';
 import { userSummaryFields } from '../serializers/user.serializer.js';
@@ -51,15 +52,13 @@ const getAssignableUsersOrThrow = async (userIds) => {
 };
 
 /**
- * The manager runs the project, so they must be able to manage its members (PM or Admin).
+ * The manager runs the project: a Project Manager or an Admin. By role, not by
+ * project:manage_members, since QA can manage members too (2026-10-15) without running projects.
  * @param {User} user
  */
 const assertCanBeManager = (user) => {
-  if (!user.hasPermission('project:manage_members')) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      'The manager must be able to manage project members (a Project Manager or an Admin)',
-    );
+  if (![roles.ADMIN, roles.PROJECT_MANAGER].includes(user.role)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'The manager must be a Project Manager or an Admin');
   }
 };
 

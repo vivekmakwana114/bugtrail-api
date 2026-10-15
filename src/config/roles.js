@@ -59,14 +59,19 @@ const roleDefinitions = Object.freeze({
   },
   [roles.QA]: {
     label: 'QA',
-    description: 'Reports bugs and verifies fixes (Pass / Failed).',
+    description: 'Reports bugs and verifies fixes (Pass / Failed). Sets up projects and their members.',
+    // Project and delete rights added 2026-10-15: QA sets up the projects it tests and cleans up bugs.
     permissions: [
       'dashboard:view',
       'dashboard:view_performance',
+      'project:create',
       'project:read',
+      'project:update',
+      'project:manage_members',
       'bug:create',
       'bug:read',
       'bug:update',
+      'bug:delete',
       'bug:assign',
       'bug:progress',
       'bug:verify',
