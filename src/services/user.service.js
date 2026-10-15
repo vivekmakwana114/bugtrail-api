@@ -123,6 +123,13 @@ const getAssignableUsers = async (actor) =>
   }).sort({ name: 1 });
 
 /**
+ * Everyone who can join a project: active users with a role (the project service refuses the rest).
+ * Feeds the member and manager pickers; the web narrows managers to Admin and PM.
+ * @returns {Promise<User[]>} sorted by name
+ */
+const getProjectCandidates = async () => User.find({ status: userStatuses.ACTIVE, role: { $ne: null } }).sort({ name: 1 });
+
+/**
  * @param {ObjectId} id
  * @returns {Promise<User>}
  */
@@ -301,6 +308,7 @@ export default {
   createUser,
   queryUsers,
   getAssignableUsers,
+  getProjectCandidates,
   getUserById,
   getUserByEmail,
   updateUserById,

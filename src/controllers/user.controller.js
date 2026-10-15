@@ -50,10 +50,16 @@ const getAssignableUsers = catchAsync(async (req, res) => {
   res.send({ users: users.map(userSerializer.userSummary) });
 });
 
+const getProjectCandidates = catchAsync(async (req, res) => {
+  const users = await userService.getProjectCandidates();
+  res.send({ users: users.map(userSerializer.userSummary) });
+});
+
 export default {
   createUser,
   getUsers,
   getAssignableUsers,
+  getProjectCandidates,
   getUser,
   updateUser,
   updateUserStatus,

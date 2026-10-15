@@ -243,6 +243,14 @@ const collection = {
           'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member. Admins are left out, except the requesting admin: only an admin can assign a bug to themselves.',
       }),
       req({
+        name: 'List project candidates',
+        method: 'GET',
+        path: '/users/project-candidates',
+        tests: [ok()],
+        description:
+          'Requires `project:manage_members`. Everyone who can join a project (active users with a role), sorted by name. Feeds the project member and manager pickers, so QA can manage members without `user:read`.',
+      }),
+      req({
         name: 'Create user',
         method: 'POST',
         path: '/users',

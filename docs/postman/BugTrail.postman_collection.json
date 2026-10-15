@@ -678,6 +678,36 @@
           ]
         },
         {
+          "name": "List project candidates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/project-candidates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "project-candidates"
+              ]
+            },
+            "description": "Requires `project:manage_members`. Everyone who can join a project (active users with a role), sorted by name. Feeds the project member and manager pickers, so QA can manage members without `user:read`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Create user",
           "request": {
             "method": "POST",
