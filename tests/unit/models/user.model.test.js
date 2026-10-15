@@ -50,7 +50,7 @@ describe('User model', () => {
       const user = newUserDoc('qa');
       expect(user.getPermissions()).toEqual(getRolePermissions('qa'));
       expect(user.hasPermission('bug:verify')).toBe(true);
-      expect(user.hasPermission('bug:delete')).toBe(false);
+      expect(user.hasPermission('project:delete')).toBe(false);
     });
 
     test('should give a Developer no verify rights', () => {
