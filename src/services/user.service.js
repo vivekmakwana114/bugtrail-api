@@ -110,10 +110,17 @@ const queryUsers = async ({ search, ...filter }, options) => {
  * Everyone a bug can be assigned to: active users whose role can work on bugs (bug:progress).
  * Feeds the assignee pickers and the bug list's assignee filter. Asked by permission, not by
  * role name, so a new role (or a changed matrix) is picked up automatically.
+ * Admins are left out: only an admin can assign a bug to themselves (see bugService.assertAssignable),
+ * so the one admin listed is the actor, when they are one.
+ * @param {User} actor
  * @returns {Promise<User[]>} sorted by name
  */
-const getAssignableUsers = async () =>
-  User.find({ status: userStatuses.ACTIVE, role: { $in: getRolesWithPermission('bug:progress') } }).sort({ name: 1 });
+const getAssignableUsers = async (actor) =>
+  User.find({
+    status: userStatuses.ACTIVE,
+    role: { $in: getRolesWithPermission('bug:progress') },
+    $or: [{ role: { $ne: roles.ADMIN } }, { _id: actor._id }],
+  }).sort({ name: 1 });
 
 /**
  * @param {ObjectId} id

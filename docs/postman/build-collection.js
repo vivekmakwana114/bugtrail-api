@@ -240,7 +240,7 @@ const collection = {
         path: '/users/assignable',
         tests: [ok()],
         description:
-          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member.',
+          'Requires `bug:read`. Everyone a bug can be assigned to: active users whose role can work on bugs, sorted by name. Assigning a bug to someone who is not on the project adds them as a member. Admins are left out, except the requesting admin: only an admin can assign a bug to themselves.',
       }),
       req({
         name: 'Create user',

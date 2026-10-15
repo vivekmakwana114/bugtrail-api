@@ -44,7 +44,7 @@ export default router;
  * /users/assignable:
  *   get:
  *     summary: Everyone a bug can be assigned to (active users whose role can work on bugs), by name
- *     description: Assigning a bug to someone who isn't on the project adds them as a member.
+ *     description: Assigning a bug to someone who isn't on the project adds them as a member. Admins aren't listed, except the requesting admin themselves (only an admin can assign a bug to themselves).
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []

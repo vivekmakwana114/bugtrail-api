@@ -46,7 +46,7 @@ const updateMe = catchAsync(async (req, res) => {
 });
 
 const getAssignableUsers = catchAsync(async (req, res) => {
-  const users = await userService.getAssignableUsers();
+  const users = await userService.getAssignableUsers(req.user);
   res.send({ users: users.map(userSerializer.userSummary) });
 });
 
